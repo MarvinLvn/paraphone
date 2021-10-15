@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
 """
 Extracts a dictionary from the corpus in input and generates a list of nonwords, matched over
 segment length, total length and transition frequencies
@@ -7,21 +5,13 @@ segment length, total length and transition frequencies
 """
 
 import argparse
-import sys
+from contextlib import contextmanager
 from fractions import *
-
-sys.path.append('../wuggydict')
-sys.path.append('src/main/python')
-sys.path.append('../')
-sys.path.append("./wuggy")
-sys.path.append('./wuggy/plugins')
-sys.path.append('./wuggy/sequencegenerator')
-from generator import Generator
-import phonetic_fr_ipa
+from multiprocessing import Pool, current_process
 from time import time
 
-from multiprocessing import Pool, current_process
-from contextlib import contextmanager
+import phonetic_fr_ipa
+from wuggy_ng import Generator
 
 
 @contextmanager
@@ -89,8 +79,7 @@ if __name__ == "__main__":
     # Here are the set of all legal words
     legal_words = g.lookup_lexicon
     a = words - set(legal_words.keys())
-    #     for i in a :
-    #         print( i.encode("utf-8"))
+
     print("There are {:d} legal words.".format(len(words.intersection(legal_words))))
 
 
@@ -101,13 +90,9 @@ if __name__ == "__main__":
         start_time = time()
         for idx, word in enumerate(words):
             j = 0
-            #             if word not in legal_words:
-            #                 print(word)
             if word in legal_words:
                 nonword_candidates = set()
                 word_start_time = time()
-                #                 print(word)
-                #                 print(word, g.lookup(word))
                 g.set_reference_sequence(g.lookup(word))
                 for i in range(1, 10):
                     g.set_frequency_filter(2 ** i, 2 ** i)
@@ -135,8 +120,7 @@ if __name__ == "__main__":
                             pass
                         else:
                             match = False
-                            # if (g.statistics['overlap_ratio']==Fraction(2,3) and
-                            #            g.statistics['lexicality']=="N"):
+
                             if high_overlap:
                                 n_refseq = len(g.reference_sequence) - 2
                                 if (g.statistics['overlap_ratio'] == Fraction(n_refseq - 1, n_refseq) and \
@@ -145,15 +129,13 @@ if __name__ == "__main__":
                                     print('entered high overlap')
                                     match = True
                             else:
-                                if (sequence != word and \
-                                        g.statistics['lexicality'] == "N" and sequence not in nonword_candidates \
-                                        ):
+                                if (sequence != word
+                                        and g.statistics['lexicality'] == "N"
+                                        and sequence not in nonword_candidates):
                                     match = True
+
                             if match:
-                                #                                 print('entered match')
-                                line = []
-                                line.append(word)
-                                line.append(sequence)
+                                line = [word, sequence]
                                 nonword_candidates.add(sequence)
                                 # append statistics, doesn't work yet
                                 # line.extend(g.statistics.values())
@@ -168,10 +150,11 @@ if __name__ == "__main__":
             printevry = 100
 
             if (idx + 1) % printevry == 0 or idx + 1 == len(words):
-                print("{} | {:d}/{:d} words processed | {:d} words in {:.4f} seconds".format(current_process().name,
-                                                                                             idx + 1, len(words),
-                                                                                             printevry,
-                                                                                             time() - start_time))
+                print("{} | {:d}/{:d} words processed | {:d} words in {:.4f} seconds".format(
+                    current_process().name,
+                    idx + 1, len(words),
+                    printevry,
+                    time() - start_time))
                 start_time = time()
 
         return lines
@@ -199,7 +182,7 @@ if __name__ == "__main__":
     print("Generated in total {:d} nonwords.".format(len(lines), ))
 
     first_line = '\t'.join(['Word', 'Match'])  # + g.statistics + g.difference_statistics)
-    output = unicode(first_line + '\n' + '\n'.join(lines)).encode("utf-8")
+    output = first_line + '\n' + '\n'.join(lines)
 
     print("Saving output to " + args.output_path)
     with open(args.output_path, 'w+') as f:
