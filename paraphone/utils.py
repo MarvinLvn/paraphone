@@ -3,6 +3,9 @@ from datetime import datetime
 from logging import StreamHandler, Formatter
 from pathlib import Path
 
+DATA_FOLDER = Path(__file__).parent / Path("data")
+DICTIONARIES_FOLDER = DATA_FOLDER / Path("dictionaries/")
+
 logger = logging.getLogger("paraphone")
 logger.setLevel(logging.DEBUG)
 stream_formatter = Formatter("[%(levelname)s] %(message)s")

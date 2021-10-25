@@ -66,26 +66,6 @@ class Tokenizer:
                 return False, word
             return True, word
 
-        def words_operations(tokens, tiret=True):
-
-            if tokens == "":
-                return False, tokens
-            #             check, tokens = remove_apostrophe(tokens)
-            #             to_return = []
-            #             if not check:
-            #                 return False, []
-            #             if tiret:
-            #                 if "--" in tokens:
-            #                     for tok in tokens.split("--"):
-            #                         check, tok = words_operations(tok)
-            #                         if check:
-            #                             to_return.append(tok[0].lower())
-            #                     return True, to_return
-            #                 else:
-            #                     token = [tokens.lower()]
-            token = [tokens.lower()]
-            return True, token
-
         print("tokenize", book)
         with open(book, "r") as f:
             text = f.read()
@@ -114,7 +94,6 @@ class Tokenizer:
     def write(self, output="../../wuggy/wug/intersection.txt"):
         with open(output, "w") as f:
             f.write("word,count\n")
-            {f.write("{},{}\n".format(str(k), str(v))) for k, v in self.d_word.items()}
 
     def union_intra_families(self, family):
         """

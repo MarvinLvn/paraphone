@@ -1,13 +1,11 @@
 import abc
-import csv
 import re
-from abc import abstractmethod
 from collections import OrderedDict
 from dataclasses import dataclass
 from os import symlink
 from pathlib import Path
 from shutil import copytree
-from typing import Literal, Dict, Type, Tuple, Iterable, Text, Optional, List, Set
+from typing import Literal, Dict, Type, Tuple, Iterable, Text, Set
 
 import yaml
 from sortedcontainers import SortedDict
@@ -32,7 +30,6 @@ class BaseImporter(metaclass=abc.ABCMeta):
     def get_id_from_path(cls, path: Path):
         return cls.id_regex.match(path.stem)[1]
 
-    @abstractmethod
     def __iter__(self) -> Iterable[Tuple[FileID, Path]]:
         for file_path in self.dataset_path.glob(self.glob_pattern):
             file_id = self.get_id_from_path(file_path)
@@ -57,6 +54,9 @@ class LittAudioImporter(BaseImporter):
 
 @dataclass
 class DatasetIndexCSV(WorkspaceCSV):
+    """CSV that stores an index of the file ID -> file path index.
+    The file path is relative to the workspace
+    """
     header = ["file_id", "file_path"]
 
     def __init__(self, file_path: Path):
@@ -70,20 +70,12 @@ class DatasetIndexCSV(WorkspaceCSV):
         self._entries[file_id] = file_path
 
     def write_entries(self):
-        with open(self.file_path, "w") as csv_file:
-            writer = csv.DictWriter(csv_file,
-                                    fieldnames=self.header,
-                                    delimiter=self.separator)
-            writer.writeheader()
-            for file_id, file_path in self._entries.items():
-                writer.writerow({"file_id": file_id, "file_path": file_path})
+        self.write([{"file_id": file_id, "file_path": file_path}
+                    for file_id, file_path in self._entries.items()])
 
     def __iter__(self) -> Iterable[Tuple[FileID, Path]]:
         dataset_path = self.file_path.parent
-        with open(self.file_path) as csv_file:
-            dict_reader = csv.DictReader(csv_file,
-                                         fieldnames=self.header,
-                                         delimiter=self.separator)
+        with self.dict_reader as dict_reader:
             for row in dict_reader:
                 path = (dataset_path / Path(row["file_path"]))
                 assert path.exists()
@@ -103,9 +95,7 @@ class DatasetMetadataCSV(WorkspaceCSV):
         self.language = language
 
     def __iter__(self) -> Iterable[Tuple[FileID, FamilyId]]:
-        with open(self.file_path) as csv_file:
-            dict_reader = csv.DictReader(csv_file,
-                                         delimiter=self.separator)
+        with self.dict_reader as dict_reader:
             for row in dict_reader:
                 file_path = Path(row["text_path"])
                 file_lang: str = row["language"].lower()
@@ -171,6 +161,7 @@ class DatasetImportTask(BaseTask):
             symlink(self.dataset_path.absolute(), dataset_syml_path)
         logger.info("Done.")
 
+        # computing the file index (file_id -> file path relative to workspace)
         idx_file = workspace.root_path / Path("datasets/index.csv")
         logger.info("Updating file index...")
         dataset_csv = DatasetIndexCSV(idx_file)
@@ -198,7 +189,6 @@ class FamiliesImportTask(BaseTask):
     def __init__(self, families_filepath: Path):
         super().__init__()
         self.families_filepath = families_filepath
-
 
     def run(self, workspace: Workspace):
         with open(workspace.root_path / Path("config.csv")) as cfg_file:
@@ -229,7 +219,7 @@ class FamiliesImportTask(BaseTask):
         for current_mf_id in reversed(metafamilies_ids):
             previous_mf_id = current_mf_id * 2
             metafamilies[current_mf_id] = SortedDict({i: set()
-                                                            for i in range(current_mf_id)})
+                                                      for i in range(current_mf_id)})
 
             families_couples = list(pairwise(metafamilies[previous_mf_id].values()))
             for fam_id, (fam_a, fam_b) in enumerate(families_couples):
