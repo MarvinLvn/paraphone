@@ -3,8 +3,12 @@ import re
 from pathlib import Path
 from typing import List, Set, Iterable, Tuple, Counter, Dict
 
+from tqdm import tqdm
+
 from .base import BaseTask
+from .dictionaries import DictionaryCSV
 from .imports import DatasetIndexCSV, FileID
+from ..utils import count_lines
 from ..workspace import Workspace, WorkspaceCSV
 
 
@@ -41,11 +45,19 @@ class TokenizeTask(BaseTask):
         "datasets/tokenized/{file_id}.csv"
     ]
 
-    non_letters_re = re.compile(r"[!'(),./0123456789:;?\[\]_«°»]")
+    non_letters_re: re.Pattern
     _dictionaries: List[Set[str]]
+    dict_names: List[str]
 
-    def load_dictionaries(self) -> List[Set[str]]:
-        pass
+    def load_dictionaries(self, workspace: Workspace) -> List[Set[str]]:
+        dicts: List[Set[str]] = []
+        for dict_name in self.dict_names:
+            dict_csv = DictionaryCSV(workspace.root_path /
+                                     Path(f"dictionaries/{dict_name}/dict.csv"))
+            dicts.append(
+                {word for word, _, _ in dict_csv}
+            )
+        return dicts
 
     def tokenize_file(self, text_id: FileID, file_path: Path, workspace: Workspace):
         tokenization_csv = TokenizedTextCSV(
@@ -80,9 +92,10 @@ class TokenizeTask(BaseTask):
                                                                   exist_ok=True)
         dataset_index = DatasetIndexCSV(Path("datasets/index.csv"))
 
-        self._dictionaries = self.load_dictionaries()
+        self._dictionaries = self.load_dictionaries(workspace)
 
-        for text_id, text_path in dataset_index:
+        # for each text file in dataset, tokenize
+        for text_id, text_path in tqdm(list(dataset_index)):
             self.tokenize_file(text_id, text_path, workspace)
 
 
@@ -92,15 +105,14 @@ class TokenizeFrenchTask(TokenizeTask):
         "dictionnaries/lexique/dict.csv",
         "dictionnaries/insee/dict.csv",
     ]
-
-    def load_dictionaries(self) -> List[Set[str]]:
-        pass  # TODO
+    dict_names = ["cmu_fr", "lexique", "insee"]
+    non_letters_re = re.compile(r"[!'(),./0123456789:;?\[\]_«°»]")
 
 
 class TokenizeEnglishTask(TokenizeTask):
     requires = TokenizeTask.requires + [
         "dictionnaries/cmu_en/dict.csv",
+        "dictionnaries/celex/dict.csv",
     ]
-
-    def load_dictionaries(self) -> List[Set[str]]:
-        pass  # TODO
+    dict_names = ["cmu_en", "celex"]
+    non_letters_re = re.compile(r"[^a-zA-Z'-]+")

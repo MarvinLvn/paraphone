@@ -28,3 +28,18 @@ def pairwise(iterable):
     "s -> (s0, s1), (s2, s3), (s4, s5), ..."
     a = iter(iterable)
     return zip(a, a)
+
+
+def _count_generator(reader):
+    b = reader(1024 * 1024)
+    while b:
+        yield b
+        b = reader(1024 * 1024)
+
+
+def count_lines(filepath: Path) -> int:
+    """A fast line counter for text files"""
+    with open(filepath, 'rb') as fp:
+        c_generator = _count_generator(fp.read)
+        # count each \n
+        return sum(buffer.count(b'\n') for buffer in c_generator)
