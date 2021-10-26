@@ -141,7 +141,7 @@ class PhonemizeTask(BaseTask):
         with phonemized_words_csv.dict_writer as dict_writer:
             for csv_filepath in tokenized_texts_folder.iterdir():
                 tokenized_csv = TokenizedTextCSV(csv_filepath)
-                pbar.display(f"For file {csv_filepath.name}")
+                pbar.set_description(f"For file {csv_filepath.name}")
                 for word, _ in tokenized_csv:
                     pbar.update()
                     # skipping already phonemized words

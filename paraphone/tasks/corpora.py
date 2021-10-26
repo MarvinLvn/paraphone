@@ -49,7 +49,7 @@ class CorporaCreationTask(BaseTask):
 
             family_words_dict = None
             for group_filepath in family_folder.iterdir():
-                pbar.display(f"Family {family_id}: {group_file.name}")
+                pbar.set_description(f"Family {family_id}: {group_file.name}")
 
                 assert group_filepath.is_file()
                 with open(group_filepath) as group_file:
