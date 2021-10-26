@@ -2,4 +2,5 @@ pandas
 google-cloud-texttospeech
 PyYAML
 sortedcontainers
+phonemizer
 git+ssh://git@gitlab.cognitive-ml.fr:1022/htiteux/wuggy-ng.git#egg=wuggy_ng

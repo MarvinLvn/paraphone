@@ -49,9 +49,9 @@ class LexiqueSetupTask(DictionarySetupTask):
 
     DICT_SUBDIR: Path = Path("dictionaries/lexique/")
     VOWELS = {"a", "i", "y", "u", "o", "O", "E", "°", "2", "9", "5", "1",
-              "@", "§", "3", "j", "8", "w"}
+              "@", "§", "3"}
     CONSONANTS = {"p", "b", "t", "d", "k", "g", "f", "v", "s", "z", "S",
-                  "Z", "m", "n", "N", "l", "R", "x", "G"}
+                  "Z", "m", "n", "N", "l", "R", "x", "G", "j", "8", "w"}
     ONSET_RE = re.compile(f'[{"".join(CONSONANTS)}]+')
 
     def find_onsets(self, syllabic_form: str) -> Iterable[str]:
