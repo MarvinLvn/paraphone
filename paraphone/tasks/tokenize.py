@@ -42,7 +42,7 @@ class TokenizeTask(BaseTask):
     ]
 
     creates = [
-        "datasets/tokenized/{file_id}.csv"
+        "datasets/tokenized/*.csv"
     ]
 
     non_letters_re: re.Pattern

@@ -183,7 +183,7 @@ class FamiliesImportTask(BaseTask):
 
     creates = [
         "datasets/families/",
-        "datasets/families/*/*.csv",
+        "datasets/families/*/*.txt",
     ]
 
     def __init__(self, families_filepath: Path):
@@ -213,16 +213,26 @@ class FamiliesImportTask(BaseTask):
 
         logger.info("Building metafamilies unions...")
 
-        metafamilies: Dict[int, Dict[int, Set[FileID]]] = SortedDict({64: base_families})
-        metafamilies_ids = [2 ** i for i in range(0, 6)]
+        families: Dict[int, Dict[int, Set[FileID]]] = SortedDict({64: base_families})
+        families_ids = [2 ** i for i in range(0, 6)]
 
-        for current_mf_id in reversed(metafamilies_ids):
-            previous_mf_id = current_mf_id * 2
-            metafamilies[current_mf_id] = SortedDict({i: set()
-                                                      for i in range(current_mf_id)})
+        for current_fam_id in reversed(families_ids):
+            previous_fam_id = current_fam_id * 2
+            families[current_fam_id] = SortedDict({i: set()
+                                                       for i in range(current_fam_id)})
 
-            families_couples = list(pairwise(metafamilies[previous_mf_id].values()))
-            for fam_id, (fam_a, fam_b) in enumerate(families_couples):
-                metafamilies_ids[current_mf_id][fam_id] = fam_a | fam_b
+            groups_couples = pairwise(families[previous_fam_id].values())
+            for group_id, (group_a, group_b) in enumerate(groups_couples):
+                families_ids[current_fam_id][group_id] = group_a | group_b
 
         # TODO: check that length of metafamily 1  == sum of lengths for families of metafam 64
+
+        logger.info("Writing families files")
+        families_folder = workspace.root_path / Path("datasets/families/")
+        families_folder.mkdir(parents=True, exist_ok=True)
+        for family_id, groups in families.items():
+            family_folder = families_folder / Path(f"family_{family_id}/")
+            for group_id, text_id_set in groups.items():
+                group_filepath = family_folder / Path(f"group_{group_id}.txt")
+                with open(group_filepath, "w") as group_file:
+                    group_file.writelines(text_id_set)
