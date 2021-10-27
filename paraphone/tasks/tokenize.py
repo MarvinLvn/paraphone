@@ -93,7 +93,7 @@ class TokenizeTask(BaseTask):
         # creating "tokenized" directory
         (workspace.root_path / Path("datasets/tokenized/")).mkdir(parents=True,
                                                                   exist_ok=True)
-        dataset_index = DatasetIndexCSV(Path("datasets/index.csv"))
+        dataset_index = DatasetIndexCSV(workspace.datasets_index)
 
         self._dictionaries = self.load_dictionaries(workspace)
 

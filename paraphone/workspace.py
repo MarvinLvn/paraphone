@@ -73,6 +73,10 @@ class Workspace:
         return self.datasets / Path("index.csv")
 
     @property
+    def dictionaries(self) -> Path:
+        return self.root_path / Path("dictionaries")
+
+    @property
     def phonemized(self) -> Path:
         return self.root_path / Path("phonemized/")
 

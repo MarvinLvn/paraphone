@@ -112,10 +112,6 @@ class ImportCommand(BaseCommand):
             subparser.set_defaults(func=command.main)
             command.init_parser(subparser)
 
-    @classmethod
-    def run(cls, args: Namespace, workspace: Workspace):
-        pass
-
 
 class SetupDictionnaryCommand(BaseCommand):
     COMMAND = "dict-setup"

@@ -3,7 +3,7 @@ import logging
 from builtins import hasattr
 from pathlib import Path
 
-from paraphone.paraphone.cli.commands import WorkspaceInitCommand, ImportCommand
+from .commands import WorkspaceInitCommand, ImportCommand, SetupDictionnaryCommand, TokenizeCommand
 from ..utils import stream_handler
 
 argparser = argparse.ArgumentParser("paraphone")
@@ -12,7 +12,8 @@ argparser.add_argument("-v", "--verbose", action="store_true",
                        help="Show debug information in the standard output")
 subparsers = argparser.add_subparsers()
 
-commands = [WorkspaceInitCommand, ImportCommand]
+commands = [WorkspaceInitCommand, ImportCommand, SetupDictionnaryCommand,
+            TokenizeCommand]
 
 for command in commands:
     subparser = subparsers.add_parser(command.COMMAND)

@@ -4,6 +4,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from os import symlink
+from os.path import relpath
 from pathlib import Path
 from shutil import copytree
 from typing import Literal, Dict, Type, Tuple, Iterable, Text, Set
@@ -24,8 +25,9 @@ class BaseImporter(metaclass=abc.ABCMeta):
     id_regex = re.compile("")
     glob_pattern = "**/*.txt"
 
-    def __init__(self, dataset_path: Path):
+    def __init__(self, dataset_path: Path, workspace: Workspace):
         self.dataset_path = dataset_path
+        self.workspace = workspace
 
     @classmethod
     def get_id_from_path(cls, path: Path):
@@ -34,7 +36,9 @@ class BaseImporter(metaclass=abc.ABCMeta):
     def __iter__(self) -> Iterable[Tuple[FileID, Path]]:
         for file_path in self.dataset_path.glob(self.glob_pattern):
             file_id = self.get_id_from_path(file_path)
-            yield file_id, file_path
+            # computing path of the file relative to the workspace
+            rel_path = Path(relpath(path=file_path, start=self.workspace.root_path))
+            yield file_id, rel_path
 
 
 class LibriVoxImporter(BaseImporter):
@@ -75,7 +79,7 @@ class DatasetIndexCSV(WorkspaceCSV):
                     for file_id, file_path in self._entries.items()])
 
     def __iter__(self) -> Iterable[Tuple[FileID, Path]]:
-        dataset_path = self.file_path.parent
+        dataset_path = self.file_path.parent.parent
         with self.dict_reader as dict_reader:
             for row in dict_reader:
                 path = (dataset_path / Path(row["file_path"]))
@@ -174,7 +178,8 @@ class DatasetImportTask(BaseTask):
 
         # importer will find files in the newly copied dataset. Already
         # existing files are just ignored
-        importer = self.importers[self.dataset_type](dataset_import_path)
+        importer = self.importers[self.dataset_type](dataset_import_path,
+                                                     workspace)
 
         # computing the file index (file_id -> file path relative to workspace)
         idx_file = workspace.root_path / Path("datasets/index.csv")
