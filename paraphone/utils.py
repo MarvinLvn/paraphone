@@ -16,6 +16,7 @@ logger.addHandler(stream_handler)
 
 
 def setup_file_handler(cmd_name: str, folder: Path):
+    folder.mkdir(parents=True, exist_ok=True)
     file_formatter = Formatter("[%(levelname)s]:%(name)s|%(message)s")
     file_handler = logging.FileHandler(folder / Path(f"{cmd_name}_{datetime.now().isoformat()}"))
     file_handler.setLevel(logging.DEBUG)

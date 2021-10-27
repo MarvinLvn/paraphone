@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List, Set, Iterable, Tuple
 
 import tqdm
+from phonemizer import phonemize
 from phonemizer.separator import Separator
 
 from .base import BaseTask
@@ -9,7 +10,6 @@ from .dictionaries import Phoneme, DictionaryCSV
 from .tokenize import TokenizedTextCSV
 from ..utils import count_lines, logger
 from ..workspace import Workspace, WorkspaceCSV
-from phonemizer import phonemize
 
 
 class FoldingCSV(WorkspaceCSV):
@@ -53,7 +53,7 @@ class BasePhonemizer:
         self.words_dict = {word: phonemes for word, phonemes, _ in words_dict}
 
     def fold(self, phones: List[str]) -> List[str]:
-        pass # TODO
+        pass  # TODO
 
     def phonemize(self, word: str) -> List[str]:
         return self.words_dict[word]
@@ -118,14 +118,14 @@ class PhonemizeTask(BaseTask):
         "phonemized/all.csv"
     ]
 
-    def load_phonemizers(self) -> List[BasePhonemizer]:
+    def load_phonemizers(self, workspace: Workspace) -> List[BasePhonemizer]:
         raise NotImplemented()
 
     def run(self, workspace: Workspace):
         phonemized_dir = workspace.root_path / Path("phonemized")
         phonemized_dir.mkdir(parents=True, exist_ok=True)
 
-        phonemizers = self.load_phonemizers()
+        phonemizers = self.load_phonemizers(workspace)
         tokenized_texts_folder = workspace.root_path / Path("datasets/tokenized/")
         phonemized_words: Set[str] = set()
         phonemized_words_csv = PhonemizedWordsCSV(phonemized_dir / Path("all.csv"))
@@ -171,8 +171,10 @@ class PhonemizeFrenchTask(PhonemizeTask):
                 + LexiquePhonemizer.requires
                 + PhonemizerWrapper.requires)
 
-    def load_phonemizers(self) -> List[BasePhonemizer]:
-        pass
+    def load_phonemizers(self, workspace: Workspace) -> List[BasePhonemizer]:
+        return [CMUFrenchPhonemizer(workspace),
+                LexiquePhonemizer(workspace),
+                PhonemizerWrapper(workspace, lang="fr")]
 
 
 class PhonemizeEnglishTask(PhonemizeTask):
@@ -180,5 +182,7 @@ class PhonemizeEnglishTask(PhonemizeTask):
                 + CelexPhonemizer.requires
                 + PhonemizerWrapper.requires)
 
-    def load_phonemizers(self) -> List[BasePhonemizer]:
-        pass
+    def load_phonemizers(self, workspace: Workspace) -> List[BasePhonemizer]:
+        return [CMUFrenchPhonemizer(workspace),
+                CelexPhonemizer(workspace),
+                PhonemizerWrapper(workspace, lang="en")]

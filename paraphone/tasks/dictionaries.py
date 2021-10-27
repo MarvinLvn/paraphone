@@ -39,6 +39,16 @@ class DictionarySetupTask(BaseTask):
         return DictionaryCSV(dict_dir / Path("dict.cst"))
 
 
+class PhonemizerSetupTask(DictionarySetupTask):
+    creates = DictionarySetupTask.creates + [
+        "dictionaries/phonemizer/",
+        "dictionaries/phonemizer/folding.csv",
+    ]
+
+    def run(self, workspace: Workspace):
+        pass
+
+
 class LexiqueSetupTask(DictionarySetupTask):
     creates = DictionarySetupTask.creates + [
         "dictionaries/lexique/",
@@ -82,7 +92,8 @@ class LexiqueSetupTask(DictionarySetupTask):
 
         onsets_filepath = workspace.root_path / self.DICT_SUBDIR / Path("onsets.txt")
         with open(onsets_filepath, "w") as onsets_file:
-            onsets_file.writelines(onsets)
+            for onset in onsets:
+                onsets_file.write(onset + "\n")
 
 
 class INSEESetupTask(DictionarySetupTask):
@@ -137,13 +148,27 @@ class CelexSetupTask(DictionarySetupTask):
         "dictionaries/celex/folding.csv",
         "dictionaries/celex/onsets.txt",  # used by wordseg as a trainset
     ]
+    DICT_SUBDIR = Path("celex")
 
     def __init__(self, celex_folder: Path):
         super().__init__()
         self.celex_folder = celex_folder
 
     def run(self, workspace: Workspace):
-        pass  # TODO
+        dict_csv = self.setup_dict_csv(workspace)
+        all_names = set()
+
+        celex_dict_path = self.celex_folder / Path("english/epw/epw.cd")
+        with open(celex_dict_path) as celex_file, \
+                dict_csv.dict_writer as dict_writer:
+            dict_writer.writeheader()
+            celex_reader = csv.reader(celex_file, delimiter="\\")
+            for row in tqdm(celex_reader):
+                word = row[1].lower()
+
+                # TODO: remove prosody information (', _?, #?)
+                # TODO: parse phonemes (some have length of two)
+
 
 
 class CMUSetupTask(DictionarySetupTask):
@@ -152,21 +177,21 @@ class CMUSetupTask(DictionarySetupTask):
 
     def run(self, workspace: Workspace):
         dict_csv = self.setup_dict_csv(workspace)
-        with open(DICTIONARIES_FOLDER / Path(self.dict_file)) as dict_txt:
-            with dict_csv.dict_writer as dict_writer:
-                dict_writer.writeheader()
-                for line in dict_txt:
-                    line = line.strip("-")
-                    word, *phonemes = line.split(" ")
-                    # if word is of the type "read(2)" (and thus a secondary
-                    # pronunciation), ignore
-                    if self.secondary_word_re.search(word) is not None:
-                        continue
-                    dict_writer.writerow({
-                        "word": word,
-                        "phonetic:": " ".join(phonemes),
-                        "syllabic": None  # no syllabic representation for CMU
-                    })
+        with open(DICTIONARIES_FOLDER / Path(self.dict_file)) as dict_txt, \
+                dict_csv.dict_writer as dict_writer:
+            dict_writer.writeheader()
+            for line in dict_txt:
+                line = line.strip("-")
+                word, *phonemes = line.split(" ")
+                # if word is of the type "read(2)" (and thus a secondary
+                # pronunciation), ignore
+                if self.secondary_word_re.search(word) is not None:
+                    continue
+                dict_writer.writerow({
+                    "word": word.lower(),
+                    "phonetic:": " ".join(phonemes),
+                    "syllabic": None  # no syllabic representation for CMU
+                })
 
 
 class CMUFRSetupTask(CMUSetupTask):

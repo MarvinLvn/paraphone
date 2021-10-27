@@ -1,4 +1,5 @@
 import collections
+import logging
 import re
 from pathlib import Path
 from typing import List, Set, Iterable, Tuple, Counter, Dict
@@ -8,7 +9,7 @@ from tqdm import tqdm
 from .base import BaseTask
 from .dictionaries import DictionaryCSV
 from .imports import DatasetIndexCSV, FileID
-from ..utils import count_lines
+from ..utils import count_lines, logger
 from ..workspace import Workspace, WorkspaceCSV
 
 
@@ -17,14 +18,14 @@ class TokenizedTextCSV(WorkspaceCSV):
 
     def __init__(self, file_path: Path):
         super().__init__(file_path, separator="\t", header=self.header)
-        self._words: Counter[str] = collections.Counter()
+        self.words: Counter[str] = collections.Counter()
 
     def add_word(self, word: str):
-        self._words[word] += 1
+        self.words[word] += 1
 
     def write_entries(self):
         self.write([{"word": word, "count": count}
-                    for word, count in self._words.items()])
+                    for word, count in self.words.items()])
 
     def __iter__(self) -> Iterable[Tuple[str, int]]:
         with self.dict_reader as dict_reader:
@@ -84,6 +85,8 @@ class TokenizeTask(BaseTask):
                         if "-" in word_candidate:
                             candidates += word_candidate.split("-")
 
+        logger.debug(f"Tokenized {len(tokenization_csv.words)} unique words")
+        logger.debug(f"Tokenized {sum(tokenization_csv.words.values())} words total")
         tokenization_csv.write_entries()
 
     def run(self, workspace: Workspace):
@@ -95,8 +98,13 @@ class TokenizeTask(BaseTask):
         self._dictionaries = self.load_dictionaries(workspace)
 
         # for each text file in dataset, tokenize
-        for text_id, text_path in tqdm(list(dataset_index)):
-            self.tokenize_file(text_id, text_path, workspace)
+        dataset_pbar = tqdm(list(dataset_index))
+        for text_id, text_path in dataset_pbar:
+            dataset_pbar.set_description(f"For {text_id}")
+            try:
+                self.tokenize_file(text_id, text_path, workspace)
+            except FileNotFoundError:
+                logger.warning(f"Couldn't find file {text_id} at path {text_path} in dataset")
 
 
 class TokenizeFrenchTask(TokenizeTask):

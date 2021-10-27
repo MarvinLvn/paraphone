@@ -1,14 +1,15 @@
 import csv
 from contextlib import contextmanager
 from csv import DictReader, DictWriter
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
-from typing import Tuple, List, Iterable, Optional, Type, Dict, ContextManager
+from typing import Tuple, List, Iterable, Optional, Dict, ContextManager
 
 import pandas as pd
+import yaml
 
-from paraphone.paraphone.utils import count_lines
+from .utils import count_lines
 
 
 class WorkspaceCSV:
@@ -25,13 +26,12 @@ class WorkspaceCSV:
     def dict_reader(self) -> ContextManager[DictReader]:
         with open(self.file_path, "r") as csv_file:
             yield csv.DictReader(csv_file,
-                                 fieldnames=self.header,
                                  delimiter=self.separator)
 
     @property
     @contextmanager
     def dict_writer(self) -> ContextManager[DictWriter]:
-        with open(self.file_path, "r") as csv_file:
+        with open(self.file_path, "w") as csv_file:
             yield csv.DictWriter(csv_file,
                                  fieldnames=self.header,
                                  delimiter=self.separator)
@@ -59,7 +59,27 @@ class WorkspaceCSV:
 class Workspace:
     root_path: Path
 
-    def find_files(self, path_template: str,
-                   class_wrapper: Optional[Type[WorkspaceFile]] = None,
-                   class_kwargs: Optional[Dict] = None):
-        pass  # TODO
+    @property
+    def config(self) -> Dict:
+        with open(self.root_path / Path("config.yml")) as cfg_file:
+            return yaml.safe_load(cfg_file)
+
+    @property
+    def datasets(self) -> Path:
+        return self.root_path / Path("datasets/")
+
+    @property
+    def datasets_index(self) -> Path:
+        return self.datasets / Path("index.csv")
+
+    @property
+    def phonemized(self) -> Path:
+        return self.root_path / Path("phonemized/")
+
+    @property
+    def corpora(self) -> Path:
+        return self.root_path / Path("corpora/")
+
+    @property
+    def logs(self) -> Path:
+        return self.root_path / Path("logs/")

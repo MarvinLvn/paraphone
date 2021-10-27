@@ -29,8 +29,13 @@ class CorporaCreationTask(BaseTask):
 
         group_words = Counter()
         for file_id in group:
-            tokenized_file = TokenizedTextCSV(tokenized_folder / Path(f"{file_id}.csv"))
-            group_words.update(tokenized_file.to_dict())
+            try:
+                tokenized_file = TokenizedTextCSV(tokenized_folder / Path(f"{file_id}.csv"))
+            except FileNotFoundError:
+                logger.warning(f"Counld't find tokinzed text file {file_id}.csv")
+                continue
+            else:
+                group_words.update(tokenized_file.to_dict())
 
         return group_words
 
