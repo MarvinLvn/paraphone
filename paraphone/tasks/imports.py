@@ -1,8 +1,10 @@
 import abc
+import logging
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from os import symlink
+from os.path import relpath
 from pathlib import Path
 from shutil import copytree
 from typing import Literal, Dict, Type, Tuple, Iterable, Text, Set
@@ -23,8 +25,9 @@ class BaseImporter(metaclass=abc.ABCMeta):
     id_regex = re.compile("")
     glob_pattern = "**/*.txt"
 
-    def __init__(self, dataset_path: Path):
+    def __init__(self, dataset_path: Path, workspace: Workspace):
         self.dataset_path = dataset_path
+        self.workspace = workspace
 
     @classmethod
     def get_id_from_path(cls, path: Path):
@@ -33,11 +36,13 @@ class BaseImporter(metaclass=abc.ABCMeta):
     def __iter__(self) -> Iterable[Tuple[FileID, Path]]:
         for file_path in self.dataset_path.glob(self.glob_pattern):
             file_id = self.get_id_from_path(file_path)
-            yield file_id, file_path
+            # computing path of the file relative to the workspace
+            rel_path = Path(relpath(path=file_path, start=self.workspace.root_path))
+            yield file_id, rel_path
 
 
 class LibriVoxImporter(BaseImporter):
-    id_regex = re.compile("(.+)_librivox_.*")
+    id_regex = re.compile("(.+)_(librivox_)?64kb_mp3_text")
     glob_pattern = "*_librivox_*.txt"
 
     # removing the useless end of file to get file_id
@@ -45,7 +50,7 @@ class LibriVoxImporter(BaseImporter):
 
 
 class LittAudioImporter(BaseImporter):
-    id_regex = re.compile("[0-9]+_[0-9]+")
+    id_regex = re.compile("([0-9]+_[0-9]+)")
     glob_pattern = "**/*.txt"
 
     # removing the useless end of file to get file_id
@@ -74,7 +79,7 @@ class DatasetIndexCSV(WorkspaceCSV):
                     for file_id, file_path in self._entries.items()])
 
     def __iter__(self) -> Iterable[Tuple[FileID, Path]]:
-        dataset_path = self.file_path.parent
+        dataset_path = self.file_path.parent.parent
         with self.dict_reader as dict_reader:
             for row in dict_reader:
                 path = (dataset_path / Path(row["file_path"]))
@@ -108,7 +113,7 @@ class DatasetMetadataCSV(WorkspaceCSV):
                 if "librivox" in file_book_id:
                     file_id = LibriVoxImporter.get_id_from_path(file_path)
                 elif "litteratureaudio" in file_book_id:
-                    file_id = LibriVoxImporter.get_id_from_path(file_path)
+                    file_id = LittAudioImporter.get_id_from_path(file_path)
                 else:
                     logger.warning(f"Couldn't get book id for file {file_path.stem}")
                     continue
@@ -126,7 +131,7 @@ class DatasetImportTask(BaseTask):
     ]
     creates = [
         "datasets/index.csv",
-        "datasets/raw/{dataset_name}/*.txt"
+        "datasets/raw/{dataset_name}/**/*.txt"
     ]
 
     importers: Dict[Importers, Type[BaseImporter]] = {
@@ -139,36 +144,54 @@ class DatasetImportTask(BaseTask):
                  copy=False, symlink=True):
         super().__init__()
         assert not (copy and symlink)
+        self.dataset_type = dataset_type
         self.copy = copy
         self.symlink = symlink
-        self.importer = self.importers[dataset_type](dataset_path)
         self.dataset_path = dataset_path
 
     def run(self, workspace: Workspace):
         assert self.dataset_path.exists()
+        # used by post-run output checks
+        self._output_context = {"dataset_name": self.dataset_path.name}
+
 
         # either copying of symlinking dataset
         raw_dataset_path = workspace.root_path / Path("datasets/raw/")
         raw_dataset_path.mkdir(parents=True, exist_ok=True)
         if self.copy:
             logger.info(f"Copying {self.dataset_path}")
-            dataset_copy_path = raw_dataset_path / Path(self.dataset_path.name)
-            copytree(self.dataset_path, dataset_copy_path, dirs_exist_ok=True)
+            dataset_import_path = raw_dataset_path / Path(self.dataset_path.name)
+            copytree(self.dataset_path, dataset_import_path, dirs_exist_ok=True)
 
-        if self.symlink:
+        elif self.symlink:
             logger.debug(f"Symlinking {self.dataset_path}")
-            dataset_syml_path = raw_dataset_path / Path(self.dataset_path.name)
-            symlink(self.dataset_path.absolute(), dataset_syml_path)
+            dataset_import_path = raw_dataset_path / Path(self.dataset_path.name)
+            try:
+                symlink(self.dataset_path.absolute(), dataset_import_path)
+            except FileExistsError as err:
+                logger.error(f"Dataset folder already exists: {err}")
+                return
+        else:
+            logging.warning("No copy nor symlink action specified, aborting.")
+            return
         logger.info("Done.")
+
+        # importer will find files in the newly copied dataset. Already
+        # existing files are just ignored
+        importer = self.importers[self.dataset_type](dataset_import_path,
+                                                     workspace)
 
         # computing the file index (file_id -> file path relative to workspace)
         idx_file = workspace.root_path / Path("datasets/index.csv")
         logger.info("Updating file index...")
         dataset_csv = DatasetIndexCSV(idx_file)
-        for file_id, file_path in self.importer:
+        added_count = 0
+        for file_id, file_path in importer:
+            added_count += 1
             dataset_csv.add_entry(file_id, file_path)
         dataset_csv.write_entries()
-        logger.info("Update done")
+        logger.info(f"Update done. Added {added_count} texts to index.")
+
 
 
 class FamiliesImportTask(BaseTask):
@@ -191,10 +214,7 @@ class FamiliesImportTask(BaseTask):
         self.families_filepath = families_filepath
 
     def run(self, workspace: Workspace):
-        with open(workspace.root_path / Path("config.csv")) as cfg_file:
-            cfg = yaml.safe_load(cfg_file)
-        lang = cfg["lang"]
-
+        lang = workspace.config["lang"]
         dataset_metadata_csv = DatasetMetadataCSV(self.families_filepath,
                                                   language=lang)
 
@@ -208,7 +228,7 @@ class FamiliesImportTask(BaseTask):
         # TODO : maybe check for empty intersection
         max_fam_count = max(len(fam) for fam in base_families.values())
         min_fam_count = min(len(fam) for fam in base_families.values())
-        logger.info(f"There are between {min_fam_count} and {max_fam_count} for"
+        logger.info(f"There are between {min_fam_count} and {max_fam_count} texts for"
                     f" all 64 primary families")
 
         logger.info("Building metafamilies unions...")
@@ -219,11 +239,11 @@ class FamiliesImportTask(BaseTask):
         for current_fam_id in reversed(families_ids):
             previous_fam_id = current_fam_id * 2
             families[current_fam_id] = SortedDict({i: set()
-                                                       for i in range(current_fam_id)})
+                                                   for i in range(current_fam_id)})
 
             groups_couples = pairwise(families[previous_fam_id].values())
             for group_id, (group_a, group_b) in enumerate(groups_couples):
-                families_ids[current_fam_id][group_id] = group_a | group_b
+                families[current_fam_id][group_id] = group_a | group_b
 
         # TODO: check that length of metafamily 1  == sum of lengths for families of metafam 64
 
@@ -232,7 +252,9 @@ class FamiliesImportTask(BaseTask):
         families_folder.mkdir(parents=True, exist_ok=True)
         for family_id, groups in families.items():
             family_folder = families_folder / Path(f"family_{family_id}/")
+            family_folder.mkdir(parents=True, exist_ok=True)
             for group_id, text_id_set in groups.items():
                 group_filepath = family_folder / Path(f"group_{group_id}.txt")
-                with open(group_filepath, "w") as group_file:
-                    group_file.writelines(text_id_set)
+                with open(group_filepath, "w", newline="\n") as group_file:
+                    for text_id in text_id_set:
+                        group_file.write(text_id + "\n")

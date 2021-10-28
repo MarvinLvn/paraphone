@@ -10,7 +10,7 @@ class WorkspaceInitTask(BaseTask):
     creates = ["logs/",
                "logs/commands.log",
                "logs/outputs/",
-               "datasets/"
+               "datasets/",
                "config.yml"]
 
     def __init__(self, language: str = "fr"):
