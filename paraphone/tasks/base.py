@@ -8,16 +8,31 @@ from ..workspace import Workspace
 
 
 class BaseTask(metaclass=abc.ABCMeta):
-    requires: List[str]
-    creates: List[str]
+    requires: List[str] = []
+    creates: List[str] = []
 
     def __init__(self):
         self._output_context: Dict[str, str] = {}
+        self._input_context: Dict[str, str] = {}
         self._requirements_context: Dict[str, str] = {}
 
     def check_requirements(self, workspace: Workspace):
         """Checks the presence of required files"""
-        pass
+        for path_template in self.requires:
+            if "*" in path_template:
+                found_files = list(workspace.root_path.glob(path_template.format(**self._input_context)))
+                if found_files:
+                    for file_path in found_files:
+                        logger.debug(f"Found required file {file_path}")
+                else:
+                    raise FileNotFoundError(f"Found no files for pattern {path_template}")
+            else:
+                file_path = (workspace.root_path
+                             / Path(path_template.format(**self._output_context)))
+                if file_path.exists():
+                    logger.debug(f"Found required file {file_path}")
+                else:
+                    raise FileNotFoundError(f"File {file_path} was not created.")
 
     def check_output(self, workspace: Workspace):
         """Checks the presence of created files"""

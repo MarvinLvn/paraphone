@@ -73,6 +73,10 @@ class Workspace:
         return self.datasets / Path("index.csv")
 
     @property
+    def tokenized(self) -> Path:
+        return self.datasets / Path("tokenized/")
+
+    @property
     def dictionaries(self) -> Path:
         return self.root_path / Path("dictionaries")
 

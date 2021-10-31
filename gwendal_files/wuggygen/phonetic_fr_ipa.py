@@ -1,7 +1,7 @@
 from wuggy_ng.plugins.orth import fr as language
 from wuggy_ng.plugins.subsyllabic_common import *
 
-public_name = 'Phonetic English (IPA)'
+public_name = 'Phonetic French (IPA)'
 default_data = '../wuggydict/wuggydict.tsv'
 default_neighbor_lexicon = '../wuggydict/wuggydict.tsv'
 default_word_lexicon = '../wuggydict/wuggydict.tsv'

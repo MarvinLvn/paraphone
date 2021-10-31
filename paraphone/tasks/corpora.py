@@ -14,6 +14,10 @@ from ..workspace import Workspace
 
 
 class CorporaCreationTask(BaseTask):
+    """Creates corpora based on the list of tokenized words for each text
+    in the dataset and the text files families. The output words list are
+    compted from the intersection of the words of the texts from the families'
+    groups"""
     requires = [
         "datasets/tokenized/*.csv",
         "datasets/families/*/*.txt"
@@ -40,12 +44,11 @@ class CorporaCreationTask(BaseTask):
         return group_words
 
     def run(self, workspace: Workspace):
-        corpora_folder = workspace.root_path / Path("corpora")
-        corpora_folder.mkdir(parents=True, exist_ok=True)
+        workspace.corpora.mkdir(parents=True, exist_ok=True)
 
         logger.info("Building families words lists...")
-        families_folder = workspace.root_path / Path("datasets/families/")
-        pbar = tqdm(list(families_folder.iterdir()))
+        families_folder = workspace.datasets / Path("families/")
+        pbar = tqdm(list(workspace.corpora.iterdir()))
         for family_folder in pbar:
             family_folder: Path
             assert family_folder.is_dir()
@@ -75,7 +78,7 @@ class CorporaCreationTask(BaseTask):
                             del family_words_dict[word]
 
             logging.debug(f"Writing words list for family {family_id}")
-            family_words_csv = TokenizedTextCSV(corpora_folder /
+            family_words_csv = TokenizedTextCSV(workspace.corpora /
                                                 Path(f"family_{family_id}.csv"))
             with family_words_csv.dict_writer as dict_writer:
                 dict_writer.writeheader()

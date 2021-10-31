@@ -43,7 +43,8 @@ class TokenizeTask(BaseTask):
     ]
 
     creates = [
-        "datasets/tokenized/*.csv"
+        "datasets/tokenized/all.csv"
+        "datasets/tokenized/per_text/*.csv"
     ]
 
     non_letters_re: re.Pattern
@@ -60,12 +61,15 @@ class TokenizeTask(BaseTask):
             )
         return dicts
 
-    def tokenize_file(self, text_id: FileID, file_path: Path, workspace: Workspace):
+    def tokenize_file(self, text_id: FileID,
+                      file_path: Path,
+                      all_tokenized_csv: TokenizedTextCSV,
+                      workspace: Workspace):
         tokenization_csv = TokenizedTextCSV(
-            workspace.root_path / Path("datasets/tokenized/") / Path(f"{text_id}.csv")
+            workspace.tokenized / Path(f"per_text/{text_id}.csv")
         )
-        with open(file_path) as txt_file:
-            for line in txt_file:
+        with open(file_path) as raw_text_file:
+            for line in raw_text_file:
                 # cleaning up line of text (replacing all non-letters by spaces)
                 cleaned_line = self.non_letters_re.sub(" ", line)
                 # splitting line by whitespace:
@@ -80,6 +84,7 @@ class TokenizeTask(BaseTask):
                     for word_dict in self._dictionaries:
                         if word_candidate in word_dict:
                             tokenization_csv.add_word(word_candidate)
+                            all_tokenized_csv.add_word(word_candidate)
                             break
                     else:
                         if "-" in word_candidate:
@@ -91,10 +96,9 @@ class TokenizeTask(BaseTask):
 
     def run(self, workspace: Workspace):
         # creating "tokenized" directory
-        (workspace.root_path / Path("datasets/tokenized/")).mkdir(parents=True,
-                                                                  exist_ok=True)
+        workspace.tokenized.mkdir(parents=True, exist_ok=True)
+        all_tokenized_words = TokenizedTextCSV(workspace.tokenized / Path("all.csv"))
         dataset_index = DatasetIndexCSV(workspace.datasets_index)
-
         self._dictionaries = self.load_dictionaries(workspace)
 
         # for each text file in dataset, tokenize
@@ -102,7 +106,7 @@ class TokenizeTask(BaseTask):
         for text_id, text_path in dataset_pbar:
             dataset_pbar.set_description(f"For {text_id}")
             try:
-                self.tokenize_file(text_id, text_path, workspace)
+                self.tokenize_file(text_id, text_path, all_tokenized_words, workspace)
             except FileNotFoundError:
                 logger.warning(f"Couldn't find file {text_id} at path {text_path} in dataset")
 

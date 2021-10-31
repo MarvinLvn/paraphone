@@ -1,13 +1,14 @@
 import csv
 import re
 from pathlib import Path
+from shutil import copyfile
 from typing import Iterable, Tuple, List, Set
 
 import pandas as pd
 from tqdm import tqdm
 
 from .base import BaseTask
-from ..utils import DICTIONARIES_FOLDER, logger
+from ..utils import DICTIONARIES_FOLDER, logger, DATA_FOLDER
 from ..workspace import Workspace, WorkspaceCSV
 
 Phoneme = str
@@ -31,12 +32,17 @@ class DictionaryCSV(WorkspaceCSV):
 
 class DictionarySetupTask(BaseTask):
     creates = ["dictionaries/"]
-    DICT_SUBDIR: Path = Path("dictionaries/")
+    DICT_SUBDIR: Path
+    FOLDING_PATH: Path
 
     def setup_dict_csv(self, workspace: Workspace):
         dict_dir = workspace.dictionaries / self.DICT_SUBDIR
         dict_dir.mkdir(parents=True, exist_ok=True)
         return DictionaryCSV(dict_dir / Path("dict.csv"))
+
+    def copy_folding(self, workspace: Workspace, folding_path: Path):
+        dict_dir = workspace.dictionaries / self.DICT_SUBDIR
+        copyfile(folding_path, dict_dir / Path("folding.csv"))
 
 
 class PhonemizerSetupTask(DictionarySetupTask):
@@ -47,7 +53,10 @@ class PhonemizerSetupTask(DictionarySetupTask):
     DICT_SUBDIR = Path("phonemizer/")
 
     def run(self, workspace: Workspace):
-        pass
+        dict_dir = workspace.dictionaries / self.DICT_SUBDIR
+        dict_dir.mkdir(parents=True, exist_ok=True)
+        lang = workspace.config["lang"]
+        self.copy_folding(workspace, DATA_FOLDER / Path(f"foldings/{lang}/phonemizer.csv"))
 
 
 class LexiqueSetupTask(DictionarySetupTask):
@@ -66,11 +75,12 @@ class LexiqueSetupTask(DictionarySetupTask):
     ONSET_RE = re.compile(f'[{"".join(CONSONANTS)}]+')
 
     def find_onsets(self, syllabic_form: str) -> Iterable[str]:
+        # TODO : fold onsets to normalize them to IPA
         syllables = syllabic_form.split("-")
         for syllable in syllables:
             onset_match = self.ONSET_RE.match(syllable)
             if onset_match is not None:
-                yield onset_match[0] # TODO : investigate onsets
+                yield onset_match[0]  # TODO : investigate onsets
 
     def run(self, workspace: Workspace):
         dict_csv = self.setup_dict_csv(workspace)
@@ -96,6 +106,9 @@ class LexiqueSetupTask(DictionarySetupTask):
         with open(onsets_filepath, "w") as onsets_file:
             for onset in onsets:
                 onsets_file.write(onset + "\n")
+
+        lang = workspace.config["lang"]
+        self.copy_folding(workspace, DATA_FOLDER / Path(f"foldings/{lang}/lexique.csv"))
 
 
 class INSEESetupTask(DictionarySetupTask):
@@ -196,6 +209,9 @@ class CMUSetupTask(DictionarySetupTask):
                     "syllabic": None  # no syllabic representation for CMU
                 })
 
+        lang = workspace.config["lang"]
+        self.copy_folding(workspace, DATA_FOLDER / Path(f"foldings/{lang}/cmu.csv"))
+
 
 class CMUFRSetupTask(CMUSetupTask):
     creates = DictionarySetupTask.creates + [
@@ -216,3 +232,4 @@ class CMUENSetupTask(CMUSetupTask):
 
 # NOTE: for foldings, store default foldings in the package's "data" folder,
 # but allow imports of custom foldings
+# TODO: filter words that have the same pronunciation

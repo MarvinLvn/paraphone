@@ -1,9 +1,11 @@
 from pathlib import Path
-from typing import List, Set, Iterable, Tuple
+from typing import List, Set, Iterable, Tuple, Dict, DefaultDict
 
 import tqdm
+from pandas._libs.internals import defaultdict
 from phonemizer import phonemize
 from phonemizer.separator import Separator
+from sortedcontainers import SortedDict
 
 from .base import BaseTask
 from .dictionaries import Phoneme, DictionaryCSV
@@ -23,8 +25,8 @@ class FoldingCSV(WorkspaceCSV):
                 yield (tuple(row[orig_col].split(" ")),
                        tuple(row[ipa_col].split(" ")))
 
-    def to_dict(self):
-        return {orig_phon: ipa_phon for orig_phon, ipa_phon in self}
+    def to_dict(self) -> Dict[Tuple[str], Tuple[str]]:
+        return {orig_phones: ipa_phones for orig_phones, ipa_phones in self}
 
 
 class PhonemizedWordsCSV(WorkspaceCSV):
@@ -48,12 +50,41 @@ class BasePhonemizer:
         dictionary_folder = (workspace.root_path
                              / Path(f"dictionary/{self.folder_name}"))
         folding_csv = FoldingCSV(dictionary_folder / Path("folding.csv"))
+        # The naming for this dict is folding_phones -> folded_phones
         self.folding_dict = folding_csv.to_dict()
+        # this dict maps the length of each folding candidate -> set of folding candidates
+        folding_pho_len: DefaultDict[int, Set[Tuple[str]]] = defaultdict(set)
+        for pho in self.folding_dict:
+            folding_pho_len[len(pho)].add(pho)
+        self.folding_pho_len = SortedDict(folding_pho_len.items())
+
         words_dict = DictionaryCSV(dictionary_folder / Path("dict.csv"))
         self.words_dict = {word: phonemes for word, phonemes, _ in words_dict}
 
     def fold(self, phones: List[str]) -> List[str]:
-        pass  # TODO
+        # TODO comment this: it's a vile piece of code
+        # TODO: move this function to utils.py, as it's going to be needed elsewhere
+        word_phones = list(phones)  # making a copy of the list
+        output_phones = []
+        while word_phones:
+            found_fold = False
+            # checking longer folding candidates first
+            for pho_len, foldings_list in self.folding_pho_len.items():
+                candidates = tuple(word_phones[:pho_len])
+                for folding_phone in foldings_list:
+                    if candidates == folding_phone:
+                        folded_phones = self.folding_dict[folding_phone]
+                        output_phones += folded_phones
+                        word_phones = word_phones[pho_len:]
+                        found_fold = True
+                        break
+                if found_fold:  # breaking out of second loop
+                    break
+            else:
+                raise ValueError(f"Coudnl't fold phones in {phones}, stuck "
+                                 f"at {word_phones}")
+
+        return output_phones
 
     def phonemize(self, word: str) -> List[str]:
         return self.words_dict[word]
@@ -122,13 +153,12 @@ class PhonemizeTask(BaseTask):
         raise NotImplemented()
 
     def run(self, workspace: Workspace):
-        phonemized_dir = workspace.root_path / Path("phonemized")
-        phonemized_dir.mkdir(parents=True, exist_ok=True)
+        workspace.phonemized.mkdir(parents=True, exist_ok=True)
 
         phonemizers = self.load_phonemizers(workspace)
-        tokenized_texts_folder = workspace.root_path / Path("datasets/tokenized/")
+        tokenized_texts_folder = workspace.datasets / Path("tokenized/per_text/")
         phonemized_words: Set[str] = set()
-        phonemized_words_csv = PhonemizedWordsCSV(phonemized_dir / Path("all.csv"))
+        phonemized_words_csv = PhonemizedWordsCSV(workspace.phonemized / Path("all.csv"))
 
         # evaluating the total number of words to phonemize to have a reliable
         # progress bar representation
@@ -152,10 +182,13 @@ class PhonemizeTask(BaseTask):
                     for phonemizer in phonemizers:
                         try:
                             phones = phonemizer.phonemize(word)
+                            folded_phones = phonemizer.fold(phones)
                         except KeyError:
                             continue
+                        except ValueError as err:
+                            logger.error(f"Error in phonemize/fold : {err}")
+                            return
                         else:
-                            folded_phones = phonemizer.fold(phones)
                             dict_writer.writerow({
                                 "word": word,
                                 "phones": folded_phones
