@@ -1,6 +1,7 @@
 import logging
 import sys
 from argparse import ArgumentParser, Namespace
+from os import cpu_count
 from pathlib import Path
 from typing import List, Type, Union
 
@@ -8,10 +9,11 @@ from ..tasks.base import BaseTask
 from ..tasks.corpora import CorporaCreationTask
 from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTask, CMUENSetupTask, CelexSetupTask, \
     PhonemizerSetupTask
-from ..tasks.imports import DatasetImportTask, FamiliesImportTask
+from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleSpeakCredentials
 from ..tasks.phonemize import PhonemizeFrenchTask, PhonemizeEnglishTask
 from ..tasks.tokenize import TokenizeFrenchTask, TokenizeEnglishTask
 from ..tasks.workspace_init import WorkspaceInitTask
+from ..tasks.wuggy_gen import WuggyPrepareTask, WuggyGenerationTask
 from ..utils import setup_file_handler, logger
 from ..workspace import Workspace
 
@@ -99,7 +101,7 @@ class ImportDatasetCommand(BaseCommand):
         import_style.add_argument("--symlink", action="store_true")
 
     @classmethod
-    def build_task(cls, args: Namespace, workspace: Workspace)\
+    def build_task(cls, args: Namespace, workspace: Workspace) \
             -> Union[BaseTask, List[BaseTask]]:
         return DatasetImportTask(
             dataset_path=args.dataset_path,
@@ -119,15 +121,29 @@ class ImportFamiliesCommand(BaseCommand):
                             help="Path to the families description file (most likely matche2.csv)")
 
     @classmethod
-    def build_task(cls, args: Namespace, workspace: Workspace)\
+    def build_task(cls, args: Namespace, workspace: Workspace) \
             -> Union[BaseTask, List[BaseTask]]:
         return FamiliesImportTask(args.families_path)
+
+
+class ImportGoogleTTSCredentialCommand(BaseCommand):
+    COMMAND = "tts-credentials"
+    DESCRIPTION = "Import the google TTS credentials JSON"
+
+    @classmethod
+    def init_parser(cls, parser: ArgumentParser):
+        parser.add_argument("json_path", type=Path,
+                            help="Path to the JSON credentials file.")
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return ImportGoogleSpeakCredentials(args.json_path)
 
 
 class ImportCommand(CommandGroup):
     COMMAND = "import"
     DESCRIPTION = "Import some data to the workspace"
-    SUBCOMMANDS = [ImportFamiliesCommand, ImportDatasetCommand]
+    SUBCOMMANDS = [ImportFamiliesCommand, ImportDatasetCommand, ImportGoogleTTSCredentialCommand]
 
 
 class SetupDictionnaryCommand(BaseCommand):
@@ -141,12 +157,12 @@ class SetupDictionnaryCommand(BaseCommand):
                                  "dataset.")
 
     @classmethod
-    def build_task(cls, args: Namespace, workspace: Workspace)\
+    def build_task(cls, args: Namespace, workspace: Workspace) \
             -> Union[BaseTask, List[BaseTask]]:
         lang = workspace.config["lang"]
         if lang == "fr":
             return [CMUFRSetupTask(), LexiqueSetupTask(),
-                           INSEESetupTask(), PhonemizerSetupTask()]
+                    INSEESetupTask(), PhonemizerSetupTask()]
         else:
             if args.celex_path is None:
                 logging.error("A path to the celex dataset has to be provided "
@@ -154,7 +170,6 @@ class SetupDictionnaryCommand(BaseCommand):
                 return []
 
             return [CMUENSetupTask(), CelexSetupTask(args.celex_path), PhonemizerSetupTask()]
-
 
 
 class TokenizeCommand(BaseCommand):
@@ -177,7 +192,6 @@ class TokenizeCommand(BaseCommand):
 class CorpusGenCommand(BaseCommand):
     COMMAND = "generate"
     DESCRIPTION = "Generate words list for corpora"
-
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace):
@@ -206,7 +220,7 @@ class CorporaCommand(CommandGroup):
 class PhonemizeCommand(BaseCommand):
     COMMAND = "phonemize"
     DESCRIPTION = "Phonemize the tokenized dataset"
-    
+
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace):
         lang = workspace.config["lang"]
@@ -214,3 +228,62 @@ class PhonemizeCommand(BaseCommand):
             return PhonemizeFrenchTask()
         else:
             return PhonemizeEnglishTask()
+
+
+class WuggyPrepareCommand(BaseCommand):
+    COMMAND = "prepare"
+    DESCRIPTION = "Prepare dataset for wuggy generation"
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return WuggyPrepareTask()
+
+
+class WuggyGenerationCommand(BaseCommand):
+    COMMAND = "gen"
+    DESCRIPTION = "Generate fake words with wuggy"
+
+    @classmethod
+    def init_parser(cls, parser: ArgumentParser):
+        parser.add_argument('--num-workers', '-w', default=cpu_count(),
+                            help='number of parallel workers', type=int)
+        parser.add_argument('--num-candidates', '-n', default=10, type=int,
+                            help='maximum number of nonword candidates per word '
+                                 '(for some words, the number of candidates '
+                                 'can be less than NUM_CANDIDATES)')
+        parser.add_argument('--high-overlap', action="store_true",
+                            help='if set, only allows overlap rate of the form (n-1)/n.'
+                                 ' Slows down dramatically computations if set.')
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return WuggyGenerationTask(num_candidates=args.num_candidates,
+                                   high_overlap=args.high_overlap,
+                                   num_workers=args.num_workers)
+
+
+class WuggyCommand(CommandGroup):
+    COMMAND = "wuggy"
+    DESCRIPTION = "Wuggy fake word generation command"
+    SUBCOMMANDS = [WuggyPrepareCommand, WuggyGenerationCommand]
+
+
+class FilterNgramCommand(BaseCommand):
+    COMMAND = "ngram"
+    DESCRIPTION = "Filter out fake words candidates using Ngrams statistics"
+
+
+class FilterP2GCommand(BaseCommand):
+    COMMAND = "words"
+    DESCRIPTION = "Filter out real words using ses2seq"
+
+
+class FilterP2GtoG2PCommand(BaseCommand):
+    COMMAND = "fake-words"
+    DESCRIPTION = "Filter out fake words using ses2seq"
+
+
+class FilterCommand(CommandGroup):
+    COMMAND = "filter"
+    DESCRIPTION = "Filter out real words/fake words candidates pair using various methods"
+    SUBCOMMANDS = [FilterNgramCommand, FilterP2GCommand, FilterP2GtoG2PCommand]

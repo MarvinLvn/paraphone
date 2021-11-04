@@ -1,14 +1,12 @@
-from paraphone.paraphone.tasks.base import BaseTask
+from ..base import BaseTask
 
-
-class NGramCandidateFilter(BaseTask):
-    pass
-
+# TODO : file names for the filtering steps are named
+#  step[x]_[operation].csv #
 
 class P2GTrain(BaseTask):
     pass
 
-
+# TODO: for these tasks, make bash calls to the seq2seq command
 class Seq2SeqTrainTask(BaseTask):
     pass
 

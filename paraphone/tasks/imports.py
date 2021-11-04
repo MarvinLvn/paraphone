@@ -6,10 +6,9 @@ from dataclasses import dataclass
 from os import symlink
 from os.path import relpath
 from pathlib import Path
-from shutil import copytree
+from shutil import copytree, copyfile
 from typing import Literal, Dict, Type, Tuple, Iterable, Text, Set
 
-import yaml
 from sortedcontainers import SortedDict
 
 from .base import BaseTask
@@ -154,7 +153,6 @@ class DatasetImportTask(BaseTask):
         # used by post-run output checks
         self._output_context = {"dataset_name": self.dataset_path.name}
 
-
         # either copying of symlinking dataset
         raw_dataset_path = workspace.root_path / Path("datasets/raw/")
         raw_dataset_path.mkdir(parents=True, exist_ok=True)
@@ -191,7 +189,6 @@ class DatasetImportTask(BaseTask):
             dataset_csv.add_entry(file_id, file_path)
         dataset_csv.write_entries()
         logger.info(f"Update done. Added {added_count} texts to index.")
-
 
 
 class FamiliesImportTask(BaseTask):
@@ -258,3 +255,21 @@ class FamiliesImportTask(BaseTask):
                 with open(group_filepath, "w", newline="\n") as group_file:
                     for text_id in text_id_set:
                         group_file.write(text_id + "\n")
+
+
+class ImportGoogleSpeakCredentials(BaseTask):
+    creates = [
+        "synth/",
+        "synth/credentials.json"
+    ]
+
+    def __init__(self, credentials_path: Path):
+        super().__init__()
+        self.credentials_path = credentials_path
+
+    def run(self, workspace: Workspace):
+        workspace.synth.mkdir(parents=True, exist_ok=True)
+        assert self.credentials_path.is_file()
+        logger.info(f"Importing credentials from {self.credentials_path}.")
+        copyfile(self.credentials_path,
+                 workspace.synth / Path("credentials.json"))

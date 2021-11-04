@@ -89,5 +89,13 @@ class Workspace:
         return self.root_path / Path("corpora/")
 
     @property
+    def wuggy(self) -> Path:
+        return self.root_path / Path("wuggy/")
+
+    @property
+    def synth(self) -> Path:
+        return self.root_path / Path("synth/")
+
+    @property
     def logs(self) -> Path:
         return self.root_path / Path("logs/")

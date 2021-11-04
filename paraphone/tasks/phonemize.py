@@ -142,7 +142,7 @@ class CelexPhonemizer(BasePhonemizer):
 
 class PhonemizeTask(BaseTask):
     requires = [
-        # TODO: add dependency on tokenized text
+        "datasets/tokenized/all.csv"
     ]
 
     creates = [
@@ -154,49 +154,36 @@ class PhonemizeTask(BaseTask):
 
     def run(self, workspace: Workspace):
         workspace.phonemized.mkdir(parents=True, exist_ok=True)
-
+        tokenized_words_csv = TokenizedTextCSV(workspace.tokenized / Path("all.csv"))
         phonemizers = self.load_phonemizers(workspace)
-        tokenized_texts_folder = workspace.datasets / Path("tokenized/per_text/")
-        phonemized_words: Set[str] = set()
         phonemized_words_csv = PhonemizedWordsCSV(workspace.phonemized / Path("all.csv"))
 
-        # evaluating the total number of words to phonemize to have a reliable
-        # progress bar representation
-        logger.info("Estimating total word counts")
-        word_count = sum(count_lines(csv_filepath) - 1
-                         for csv_filepath in tokenized_texts_folder.iterdir())
-        pbar = tqdm.tqdm(total=word_count)
+        # computing length of tokenized words file
+        pbar = tqdm.tqdm(total=count_lines(tokenized_words_csv.file_path))
 
         logger.info("Phonemizing all words in tokenized dataset...")
         with phonemized_words_csv.dict_writer as dict_writer:
-            for csv_filepath in tokenized_texts_folder.iterdir():
-                tokenized_csv = TokenizedTextCSV(csv_filepath)
-                pbar.set_description(f"For file {csv_filepath.name}")
-                for word, _ in tokenized_csv:
-                    pbar.update()
-                    # skipping already phonemized words
-                    if word in phonemized_words:
-                        continue
+            for word, _ in tokenized_words_csv:
+                pbar.update()
 
-                    # trying to phonemize with each phonemizer, in their order
-                    for phonemizer in phonemizers:
-                        try:
-                            phones = phonemizer.phonemize(word)
-                            folded_phones = phonemizer.fold(phones)
-                        except KeyError:
-                            continue
-                        except ValueError as err:
-                            logger.error(f"Error in phonemize/fold : {err}")
-                            return
-                        else:
-                            dict_writer.writerow({
-                                "word": word,
-                                "phones": folded_phones
-                            })
-                            phonemized_words.add(word)
-                            break
+                # trying to phonemize with each phonemizer, in their order
+                for phonemizer in phonemizers:
+                    try:
+                        phones = phonemizer.phonemize(word)
+                        folded_phones = phonemizer.fold(phones)
+                    except KeyError:
+                        continue
+                    except ValueError as err:
+                        logger.error(f"Error in phonemize/fold : {err}")
+                        return
                     else:
-                        raise RuntimeError(f"Couldn't phonemize word {word}")
+                        dict_writer.writerow({
+                            "word": word,
+                            "phones": folded_phones
+                        })
+                        break
+                else:
+                    raise RuntimeError(f"Couldn't phonemize word {word}")
 
 
 class PhonemizeFrenchTask(PhonemizeTask):

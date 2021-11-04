@@ -109,6 +109,7 @@ class TokenizeTask(BaseTask):
                 self.tokenize_file(text_id, text_path, all_tokenized_words, workspace)
             except FileNotFoundError:
                 logger.warning(f"Couldn't find file {text_id} at path {text_path} in dataset")
+        all_tokenized_words.write_entries()
 
 
 class TokenizeFrenchTask(TokenizeTask):
