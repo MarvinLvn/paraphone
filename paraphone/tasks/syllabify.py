@@ -17,7 +17,7 @@ class SyllabifiedWordsCSV(WorkspaceCSV):
         super().__init__(file_path, separator="\t", header=self.header)
 
 
-class SillabifyTask(BaseTask):
+class SyllabifyTask(BaseTask):
     requires = [
         "phonemized/all.csv",
     ]
@@ -67,17 +67,17 @@ class SillabifyTask(BaseTask):
                 })
 
 
-class SillabifyFrenchTask(BaseTask):
-    requires = SillabifyTask.requires + [
-        "dictionaries/lexique/onsets.txt"
-        "dictionaries/lexique/vowels.txt"
+class SyllabifyFrenchTask(BaseTask):
+    requires = SyllabifyTask.requires + [
+        "dictionaries/lexique/onsets.txt",
+        "dictionaries/vowels.txt"
     ]
     phonetic_dict = "lexique"
 
 
-class SillabifyEnglishTask(BaseTask):
-    requires = SillabifyTask.requires + [
-        "dictionaries/celex/onsets.txt"
-        "dictionaries/celex/vowels.txt"
+class SyllabifyEnglishTask(BaseTask):
+    requires = SyllabifyTask.requires + [
+        "dictionaries/celex/onsets.txt",
+        "dictionaries/vowels.txt"
     ]
     phonetic_dict = "celex"

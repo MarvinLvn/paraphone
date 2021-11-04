@@ -101,6 +101,7 @@ class WuggyGenerationTask(BaseTask):
             j = 0
             if word not in legal_words:
                 continue
+
             nonword_candidates = set()
             wuggy_gen.set_reference_sequence(wuggy_gen.lookup(word))
             for i in range(1, 10):
@@ -116,8 +117,8 @@ class WuggyGenerationTask(BaseTask):
                 # to generate multiple times the same nonword and thus lower the quality
                 # the pairs. (and would cause performance issues on big sets of words)
                 for sequence in wuggy_gen.generate(clear_cache=True):
-                    if time() - word_start_time > 50:
-                        break
+                    #if time() - word_start_time > 50:
+                    #    break
 
                     try:
                         sequence.encode('utf-8')

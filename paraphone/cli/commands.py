@@ -11,6 +11,7 @@ from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTas
     PhonemizerSetupTask
 from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleSpeakCredentials
 from ..tasks.phonemize import PhonemizeFrenchTask, PhonemizeEnglishTask
+from ..tasks.syllabify import SyllabifyFrenchTask, SyllabifyEnglishTask
 from ..tasks.tokenize import TokenizeFrenchTask, TokenizeEnglishTask
 from ..tasks.workspace_init import WorkspaceInitTask
 from ..tasks.wuggy_gen import WuggyPrepareTask, WuggyGenerationTask
@@ -228,6 +229,19 @@ class PhonemizeCommand(BaseCommand):
             return PhonemizeFrenchTask()
         else:
             return PhonemizeEnglishTask()
+
+
+class SyllabifyCommand(BaseCommand):
+    COMMAND = "syllabify"
+    DESCRIPTION = "Syllabify the phonetic forms of the words"
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace):
+        lang = workspace.config["lang"]
+        if lang == "fr":
+            return SyllabifyFrenchTask()
+        else:
+            return SyllabifyEnglishTask()
 
 
 class WuggyPrepareCommand(BaseCommand):

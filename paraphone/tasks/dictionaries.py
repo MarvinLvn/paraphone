@@ -8,6 +8,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from .base import BaseTask
+from .phonemize import FoldingCSV
 from ..utils import DICTIONARIES_FOLDER, logger, DATA_FOLDER
 from ..workspace import Workspace, WorkspaceCSV
 
@@ -82,6 +83,10 @@ class LexiqueSetupTask(DictionarySetupTask):
             if onset_match is not None:
                 yield onset_match[0]  # TODO : investigate onsets
 
+    def fold_onsets(self, onsets: Set[str], folding_csv: FoldingCSV):
+        for onset in onsets:
+            yield " ".join(folding_csv.fold(onset.split(" ")))
+
     def run(self, workspace: Workspace):
         dict_csv = self.setup_dict_csv(workspace)
         # reading the csv and extracting only the columns of interest
@@ -102,13 +107,33 @@ class LexiqueSetupTask(DictionarySetupTask):
                 )
                 onsets.update(set(self.find_onsets(row["syll"])))
 
+        # copying and loading foldings
+        lang = workspace.config["lang"]
+        self.copy_folding(workspace, DATA_FOLDER / Path(f"foldings/{lang}/lexique.csv"))
+        foldings_csv = FoldingCSV(workspace.dictionaries / Path("lexique/folding.csv"))
+        onsets = set(self.fold_onsets(onsets, foldings_csv))
+
+        # removing and adding custom onsets
+        with open(DATA_FOLDER / Path(f"onsets/{lang}/added.txt")) as added_onsets_file:
+            added_onsets = set(added_onsets_file.read().split("\n"))
+            logger.debug(f"Added onsets: {added_onsets}")
+            onsets.update(added_onsets)
+        with open(DATA_FOLDER / Path(f"onsets/{lang}/removed.txt")) as removed_onsets_file:
+            removed_onsets = set(removed_onsets_file.read().split("\n"))
+            logger.debug(f"Removed onsets : {removed_onsets}")
+            onsets = onsets - removed_onsets
+
+        # saving onsets
         onsets_filepath = dict_csv.file_path.parent / Path("onsets.txt")
+        logger.info(f"Saving onsets for lexique to {onsets_filepath}")
         with open(onsets_filepath, "w") as onsets_file:
             for onset in onsets:
                 onsets_file.write(onset + "\n")
 
-        lang = workspace.config["lang"]
-        self.copy_folding(workspace, DATA_FOLDER / Path(f"foldings/{lang}/lexique.csv"))
+        # copying vowels
+        vowels_path = workspace.dictionaries / Path("vowels.txt")
+        logger.info(f"'Copying vowels to {vowels_path}")
+        copyfile(DATA_FOLDER / Path("vowels_fr.txt"), vowels_path)
 
 
 class INSEESetupTask(DictionarySetupTask):

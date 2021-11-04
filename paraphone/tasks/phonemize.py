@@ -13,8 +13,13 @@ from .tokenize import TokenizedTextCSV
 from ..utils import count_lines, logger
 from ..workspace import Workspace, WorkspaceCSV
 
+FoldingDict = Dict[Tuple[str], Tuple[str]]
+
 
 class FoldingCSV(WorkspaceCSV):
+    folding_dict: FoldingDict
+    folding_pho_len: Dict[int, Set[Tuple[str]]]
+
     def __init__(self, file_path: Path):
         super().__init__(file_path, separator=",", header=None)
 
@@ -28,38 +33,14 @@ class FoldingCSV(WorkspaceCSV):
     def to_dict(self) -> Dict[Tuple[str], Tuple[str]]:
         return {orig_phones: ipa_phones for orig_phones, ipa_phones in self}
 
-
-class PhonemizedWordsCSV(WorkspaceCSV):
-    header = ["word", "phones"]
-
-    def __init__(self, file_path: Path):
-        super().__init__(file_path, separator="\t", header=self.header)
-
-    def __iter__(self) -> Iterable[Tuple[str, List[Phoneme]]]:
-        with self.dict_reader as dict_reader:
-            for row in dict_reader:
-                yield row["word"], row["phones"].split(" ")
-
-
-class BasePhonemizer:
-    folder_name = ""
-
-    requires = []
-
-    def __init__(self, workspace: Workspace):
-        dictionary_folder = (workspace.root_path
-                             / Path(f"dictionary/{self.folder_name}"))
-        folding_csv = FoldingCSV(dictionary_folder / Path("folding.csv"))
+    def load(self):
         # The naming for this dict is folding_phones -> folded_phones
-        self.folding_dict = folding_csv.to_dict()
+        self.folding_dict = self.to_dict()
         # this dict maps the length of each folding candidate -> set of folding candidates
         folding_pho_len: DefaultDict[int, Set[Tuple[str]]] = defaultdict(set)
         for pho in self.folding_dict:
             folding_pho_len[len(pho)].add(pho)
         self.folding_pho_len = SortedDict(folding_pho_len.items())
-
-        words_dict = DictionaryCSV(dictionary_folder / Path("dict.csv"))
-        self.words_dict = {word: phonemes for word, phonemes, _ in words_dict}
 
     def fold(self, phones: List[str]) -> List[str]:
         # TODO comment this: it's a vile piece of code
@@ -81,31 +62,64 @@ class BasePhonemizer:
                 if found_fold:  # breaking out of second loop
                     break
             else:
-                raise ValueError(f"Coudnl't fold phones in {phones}, stuck "
+                raise ValueError(f"Couldn't fold phones in {phones}, stuck "
                                  f"at {word_phones}")
 
-        return output_phones
+
+
+class PhonemizedWordsCSV(WorkspaceCSV):
+    header = ["word", "phones"]
+
+    def __init__(self, file_path: Path):
+        super().__init__(file_path, separator="\t", header=self.header)
+
+    def __iter__(self) -> Iterable[Tuple[str, List[Phoneme]]]:
+        with self.dict_reader as dict_reader:
+            for row in dict_reader:
+                yield row["word"], row["phones"].split(" ")
+
+
+class BasePhonemizer:
+    folder_name = ""
+    requires = []
+
+    def __init__(self, workspace: Workspace):
+        dictionary_folder = workspace.dictionaries / Path(self.folder_name)
+        self.folding_csv = FoldingCSV(dictionary_folder / Path("folding.csv"))
+        self.folding_csv.load()
+
+        words_dict = DictionaryCSV(dictionary_folder / Path("dict.csv"))
+        self.words_dict = {word: phonemes for word, phonemes, _ in words_dict}
+
+    def fold(self, phones: List[str]) -> List[str]:
+        return self.folding_csv.fold(phones)
 
     def phonemize(self, word: str) -> List[str]:
         return self.words_dict[word]
 
 
 class PhonemizerWrapper(BasePhonemizer):
+    folder_name = "phonemizer"
 
     def __init__(self, workspace: Workspace,  # noqa
                  lang: str = "fr"):
-        dictionary_folder = (workspace.root_path
-                             / Path(f"dictionary/{self.folder_name}"))
-        folding_csv = FoldingCSV(dictionary_folder / Path("folding.csv"))
-        self.folding_dict = folding_csv.to_dict()
+        dictionary_folder = workspace.dictionaries / Path(self.folder_name)
+        self.folding_csv = FoldingCSV(dictionary_folder / Path("folding.csv"))
+        self.folding_csv.load()
 
         self.lang = "fr-fr" if lang == "fr" else "en-us"
-        self.separator = Separator(phone=" ", word=",")
+        self.separator = Separator(phone=" ", word=None)
 
     def phonemize(self, word: str) -> List[str]:
-        return phonemize("test",
-                         language=self.lang,
-                         separator=self.separator).split(" ")
+        phonemized = phonemize(word,
+                               language=self.lang,
+                               separator=self.separator,
+                               strip=True,
+                               language_switch="remove-utterance")
+        if not phonemized:
+            raise KeyError(word)
+
+        return phonemized.strip().split(" ")
 
 
 class CMUFrenchPhonemizer(BasePhonemizer):
@@ -158,6 +172,9 @@ class PhonemizeTask(BaseTask):
         phonemizers = self.load_phonemizers(workspace)
         phonemized_words_csv = PhonemizedWordsCSV(workspace.phonemized / Path("all.csv"))
 
+        # set of all phonemized forms
+        phonemized_words: Set[str] = set()
+
         # computing length of tokenized words file
         pbar = tqdm.tqdm(total=count_lines(tokenized_words_csv.file_path))
 
@@ -174,16 +191,24 @@ class PhonemizeTask(BaseTask):
                     except KeyError:
                         continue
                     except ValueError as err:
-                        logger.error(f"Error in phonemize/fold : {err}")
+                        logger.error(f"Error in phonemize/fold for word {word}: {err}")
                         return
                     else:
+                        # if current word's phonetic form is already present,
+                        # ignore word (else, add it to the current set of phonemized words)
+                        phonetic_form = "".join(folded_phones)
+                        if phonetic_form in phonemized_words:
+                            break
+                        else:
+                            phonemized_words.add(phonetic_form)
+
                         dict_writer.writerow({
                             "word": word,
-                            "phones": folded_phones
+                            "phones": " ".join(folded_phones)
                         })
                         break
                 else:
-                    raise RuntimeError(f"Couldn't phonemize word {word}")
+                    logger.warning(f"Couldn't phonemize word {word}")
 
 
 class PhonemizeFrenchTask(PhonemizeTask):

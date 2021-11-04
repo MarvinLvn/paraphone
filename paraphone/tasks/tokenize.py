@@ -43,7 +43,7 @@ class TokenizeTask(BaseTask):
     ]
 
     creates = [
-        "datasets/tokenized/all.csv"
+        "datasets/tokenized/all.csv",
         "datasets/tokenized/per_text/*.csv"
     ]
 
@@ -97,6 +97,8 @@ class TokenizeTask(BaseTask):
     def run(self, workspace: Workspace):
         # creating "tokenized" directory
         workspace.tokenized.mkdir(parents=True, exist_ok=True)
+        (workspace.tokenized / Path(f"per_text/")).mkdir(parents=True, exist_ok=True)
+
         all_tokenized_words = TokenizedTextCSV(workspace.tokenized / Path("all.csv"))
         dataset_index = DatasetIndexCSV(workspace.datasets_index)
         self._dictionaries = self.load_dictionaries(workspace)
@@ -114,9 +116,9 @@ class TokenizeTask(BaseTask):
 
 class TokenizeFrenchTask(TokenizeTask):
     requires = TokenizeTask.requires + [
-        "dictionnaries/cmu_fr/dict.csv",
-        "dictionnaries/lexique/dict.csv",
-        "dictionnaries/insee/dict.csv",
+        "dictionaries/cmu_fr/dict.csv",
+        "dictionaries/lexique/dict.csv",
+        "dictionaries/insee/dict.csv",
     ]
     dict_names = ["cmu_fr", "lexique", "insee"]
     non_letters_re = re.compile(r"[!'(),./0123456789:;?\[\]_«°»]")
@@ -124,8 +126,8 @@ class TokenizeFrenchTask(TokenizeTask):
 
 class TokenizeEnglishTask(TokenizeTask):
     requires = TokenizeTask.requires + [
-        "dictionnaries/cmu_en/dict.csv",
-        "dictionnaries/celex/dict.csv",
+        "dictionaries/cmu_en/dict.csv",
+        "dictionaries/celex/dict.csv",
     ]
     dict_names = ["cmu_en", "celex"]
     non_letters_re = re.compile(r"[^a-zA-Z'-]+")
