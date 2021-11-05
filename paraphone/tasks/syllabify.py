@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import Tuple, List
 
-from wordseg.separator import Separator
-from wordseg.syllabification import Syllabifier
+from ..syllable_seg.separator import Separator
+from ..syllable_seg.syllabification import Syllabifier
 
 from .base import BaseTask
 from .phonemize import PhonemizedWordsCSV
@@ -27,12 +27,12 @@ class SyllabifyTask(BaseTask):
     ]
     phonetic_dict: str
 
-    def load_phonetic_config(self, workspace) -> Tuple[List[str], List[str]]:
+    def load_phonetic_config(self, workspace: Workspace) -> Tuple[List[str], List[str]]:
         phonetic_dict_path = workspace.dictionaries / Path(self.phonetic_dict)
         with open(phonetic_dict_path / Path("onsets.txt")) as onsets_file:
             onsets = onsets_file.read().split("\n")
 
-        with open(phonetic_dict_path / Path("vowels.txt")) as vowels_file:
+        with open(workspace.dictionaries / Path("vowels.txt")) as vowels_file:
             vowels = vowels_file.read().split("\n")
 
         return onsets, vowels
@@ -48,7 +48,8 @@ class SyllabifyTask(BaseTask):
         phonemized_words_path = workspace.phonemized / Path("all.csv")
         phonemized_words_csv = PhonemizedWordsCSV(phonemized_words_path)
 
-        graphemic_forms, phonetic_forms = phonemized_words_csv
+        graphemic_forms, phonetic_forms = zip(*phonemized_words_csv)
+        phonetic_forms = [" ".join(form) for form in phonetic_forms]
         syllabic_forms = syllabifier.syllabify(phonetic_forms)
 
         syllabified_csv = SyllabifiedWordsCSV(workspace.phonemized / Path("syllabic.csv"))
@@ -67,7 +68,7 @@ class SyllabifyTask(BaseTask):
                 })
 
 
-class SyllabifyFrenchTask(BaseTask):
+class SyllabifyFrenchTask(SyllabifyTask):
     requires = SyllabifyTask.requires + [
         "dictionaries/lexique/onsets.txt",
         "dictionaries/vowels.txt"
@@ -75,7 +76,7 @@ class SyllabifyFrenchTask(BaseTask):
     phonetic_dict = "lexique"
 
 
-class SyllabifyEnglishTask(BaseTask):
+class SyllabifyEnglishTask(SyllabifyTask):
     requires = SyllabifyTask.requires + [
         "dictionaries/celex/onsets.txt",
         "dictionaries/vowels.txt"

@@ -1,70 +1,15 @@
 from pathlib import Path
-from typing import List, Set, Iterable, Tuple, Dict, DefaultDict
+from typing import List, Set, Iterable, Tuple
 
 import tqdm
-from pandas._libs.internals import defaultdict
 from phonemizer import phonemize
 from phonemizer.separator import Separator
-from sortedcontainers import SortedDict
 
 from .base import BaseTask
-from .dictionaries import Phoneme, DictionaryCSV
+from .dictionaries import Phoneme, DictionaryCSV, FoldingCSV
 from .tokenize import TokenizedTextCSV
 from ..utils import count_lines, logger
 from ..workspace import Workspace, WorkspaceCSV
-
-FoldingDict = Dict[Tuple[str], Tuple[str]]
-
-
-class FoldingCSV(WorkspaceCSV):
-    folding_dict: FoldingDict
-    folding_pho_len: Dict[int, Set[Tuple[str]]]
-
-    def __init__(self, file_path: Path):
-        super().__init__(file_path, separator=",", header=None)
-
-    def __iter__(self) -> Iterable[Tuple[Tuple[Phoneme], Tuple[Phoneme]]]:
-        with self.dict_reader as dict_reader:
-            orig_col, ipa_col = dict_reader.fieldnames
-            for row in dict_reader:
-                yield (tuple(row[orig_col].split(" ")),
-                       tuple(row[ipa_col].split(" ")))
-
-    def to_dict(self) -> Dict[Tuple[str], Tuple[str]]:
-        return {orig_phones: ipa_phones for orig_phones, ipa_phones in self}
-
-    def load(self):
-        # The naming for this dict is folding_phones -> folded_phones
-        self.folding_dict = self.to_dict()
-        # this dict maps the length of each folding candidate -> set of folding candidates
-        folding_pho_len: DefaultDict[int, Set[Tuple[str]]] = defaultdict(set)
-        for pho in self.folding_dict:
-            folding_pho_len[len(pho)].add(pho)
-        self.folding_pho_len = SortedDict(folding_pho_len.items())
-
-    def fold(self, phones: List[str]) -> List[str]:
-        # TODO comment this: it's a vile piece of code
-        # TODO: move this function to utils.py, as it's going to be needed elsewhere
-        word_phones = list(phones)  # making a copy of the list
-        output_phones = []
-        while word_phones:
-            found_fold = False
-            # checking longer folding candidates first
-            for pho_len, foldings_list in self.folding_pho_len.items():
-                candidates = tuple(word_phones[:pho_len])
-                for folding_phone in foldings_list:
-                    if candidates == folding_phone:
-                        folded_phones = self.folding_dict[folding_phone]
-                        output_phones += folded_phones
-                        word_phones = word_phones[pho_len:]
-                        found_fold = True
-                        break
-                if found_fold:  # breaking out of second loop
-                    break
-            else:
-                raise ValueError(f"Couldn't fold phones in {phones}, stuck "
-                                 f"at {word_phones}")
-
 
 
 class PhonemizedWordsCSV(WorkspaceCSV):
@@ -180,6 +125,7 @@ class PhonemizeTask(BaseTask):
 
         logger.info("Phonemizing all words in tokenized dataset...")
         with phonemized_words_csv.dict_writer as dict_writer:
+            dict_writer.writeheader()
             for word, _ in tokenized_words_csv:
                 pbar.update()
 

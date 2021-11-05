@@ -26,7 +26,7 @@ def setup_file_handler(cmd_name: str, folder: Path):
 
 
 def pairwise(iterable):
-    "s -> (s0, s1), (s2, s3), (s4, s5), ..."
+    """s -> (s0, s1), (s2, s3), (s4, s5), ..."""
     a = iter(iterable)
     return zip(a, a)
 
@@ -44,3 +44,16 @@ def count_lines(filepath: Path) -> int:
         c_generator = _count_generator(fp.read)
         # count each \n
         return sum(buffer.count(b'\n') for buffer in c_generator)
+
+
+def null_logger():
+    """Configures and returns a logger sending messages to nowhere
+    This is used as default logger for some functions.
+    Returns
+    -------
+    logging.Logger
+        Logging instance ignoring all the messages.
+    """
+    log = logging.getLogger("nulllogger")
+    log.addHandler(logging.NullHandler())
+    return log

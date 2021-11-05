@@ -2,13 +2,14 @@ import csv
 import re
 from pathlib import Path
 from shutil import copyfile
-from typing import Iterable, Tuple, List, Set
+from typing import Iterable, Tuple, List, Set, Dict, DefaultDict
 
 import pandas as pd
+from pandas._libs.internals import defaultdict
+from sortedcontainers import SortedDict
 from tqdm import tqdm
 
 from .base import BaseTask
-from .phonemize import FoldingCSV
 from ..utils import DICTIONARIES_FOLDER, logger, DATA_FOLDER
 from ..workspace import Workspace, WorkspaceCSV
 
@@ -29,6 +30,60 @@ class DictionaryCSV(WorkspaceCSV):
                 syllables = [syllable.split()
                              for syllable in row["syllabic"].split("-")]
                 yield row["word"], phonemes, syllables
+
+
+FoldingDict = Dict[Tuple[str], Tuple[str]]
+
+
+class FoldingCSV(WorkspaceCSV):
+    folding_dict: FoldingDict
+    folding_pho_len: Dict[int, Set[Tuple[str]]]
+
+    def __init__(self, file_path: Path):
+        super().__init__(file_path, separator=",", header=None)
+
+    def __iter__(self) -> Iterable[Tuple[Tuple[Phoneme], Tuple[Phoneme]]]:
+        with self.dict_reader as dict_reader:
+            orig_col, ipa_col = dict_reader.fieldnames
+            for row in dict_reader:
+                yield (tuple(row[orig_col].split(" ")),
+                       tuple(row[ipa_col].split(" ")))
+
+    def to_dict(self) -> Dict[Tuple[str], Tuple[str]]:
+        return {orig_phones: ipa_phones for orig_phones, ipa_phones in self}
+
+    def load(self):
+        # The naming for this dict is folding_phones -> folded_phones
+        self.folding_dict = self.to_dict()
+        # this dict maps the length of each folding candidate -> set of folding candidates
+        folding_pho_len: DefaultDict[int, Set[Tuple[str]]] = defaultdict(set)
+        for pho in self.folding_dict:
+            folding_pho_len[len(pho)].add(pho)
+        self.folding_pho_len = SortedDict(folding_pho_len.items())
+
+    def fold(self, phones: List[str]) -> List[str]:
+        # TODO comment this: it's a vile piece of code
+        # TODO: move this function to utils.py, as it's going to be needed elsewhere
+        word_phones = list(phones)  # making a copy of the list
+        output_phones = []
+        while word_phones:
+            found_fold = False
+            # checking longer folding candidates first
+            for pho_len, foldings_list in self.folding_pho_len.items():
+                candidates = tuple(word_phones[:pho_len])
+                for folding_phone in foldings_list:
+                    if candidates == folding_phone:
+                        folded_phones = self.folding_dict[folding_phone]
+                        output_phones += folded_phones
+                        word_phones = word_phones[pho_len:]
+                        found_fold = True
+                        break
+                if found_fold:  # breaking out of second loop
+                    break
+            else:
+                raise ValueError(f"Couldn't fold phones in {phones}, stuck "
+                                 f"at {word_phones}")
+        return output_phones
 
 
 class DictionarySetupTask(BaseTask):
@@ -63,6 +118,7 @@ class PhonemizerSetupTask(DictionarySetupTask):
 class LexiqueSetupTask(DictionarySetupTask):
     creates = DictionarySetupTask.creates + [
         "dictionaries/lexique/",
+        "dictionaries/vowels.txt",
         "dictionaries/lexique/dict.csv",
         "dictionaries/lexique/folding.csv",
         "dictionaries/lexique/onsets.txt",  # used by wordseg as a trainset
@@ -76,16 +132,15 @@ class LexiqueSetupTask(DictionarySetupTask):
     ONSET_RE = re.compile(f'[{"".join(CONSONANTS)}]+')
 
     def find_onsets(self, syllabic_form: str) -> Iterable[str]:
-        # TODO : fold onsets to normalize them to IPA
         syllables = syllabic_form.split("-")
         for syllable in syllables:
             onset_match = self.ONSET_RE.match(syllable)
             if onset_match is not None:
-                yield onset_match[0]  # TODO : investigate onsets
+                yield onset_match[0]
 
     def fold_onsets(self, onsets: Set[str], folding_csv: FoldingCSV):
         for onset in onsets:
-            yield " ".join(folding_csv.fold(onset.split(" ")))
+            yield " ".join(folding_csv.fold(list(onset)))
 
     def run(self, workspace: Workspace):
         dict_csv = self.setup_dict_csv(workspace)
@@ -111,6 +166,7 @@ class LexiqueSetupTask(DictionarySetupTask):
         lang = workspace.config["lang"]
         self.copy_folding(workspace, DATA_FOLDER / Path(f"foldings/{lang}/lexique.csv"))
         foldings_csv = FoldingCSV(workspace.dictionaries / Path("lexique/folding.csv"))
+        foldings_csv.load()
         onsets = set(self.fold_onsets(onsets, foldings_csv))
 
         # removing and adding custom onsets
@@ -257,4 +313,3 @@ class CMUENSetupTask(CMUSetupTask):
 
 # NOTE: for foldings, store default foldings in the package's "data" folder,
 # but allow imports of custom foldings
-# TODO: filter words that have the same pronunciation
