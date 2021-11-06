@@ -1,7 +1,8 @@
 import abc
-import logging
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
+
+import yaml
 
 from ..utils import logger
 from ..workspace import Workspace
@@ -10,11 +11,13 @@ from ..workspace import Workspace
 class BaseTask(metaclass=abc.ABCMeta):
     requires: List[str] = []
     creates: List[str] = []
+    stats_subpath: Optional[Path] = None
 
     def __init__(self):
         self._output_context: Dict[str, str] = {}
         self._input_context: Dict[str, str] = {}
         self._requirements_context: Dict[str, str] = {}
+        self.stats: Dict = dict()
 
     def check_requirements(self, workspace: Workspace):
         """Checks the presence of required files"""
@@ -52,6 +55,11 @@ class BaseTask(metaclass=abc.ABCMeta):
                     logger.debug(f"Created file {file_path}")
                 else:
                     logger.warning(f"File {file_path} was not created.")
+
+    def write_stats(self, workspace: Workspace):
+        if self.stats_subpath is not None:
+            with open(workspace.stats / self.stats_subpath) as stats_file:
+                yaml.safe_dump(self.stats, stats_file)
 
     # @abstractmethod
     def run(self, workspace: Workspace):

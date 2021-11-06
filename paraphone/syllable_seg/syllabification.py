@@ -21,6 +21,15 @@ from .separator import Separator
 from ..utils import null_logger
 
 
+class UnknownSymbolError(RuntimeError):
+    pass
+
+class NoVowelError(RuntimeError):
+    pass
+
+class NoOnsetError(RuntimeError):
+    pass
+
 class Syllabifier:
     """Syllabify a text given in phonological or orthographic form
 
@@ -131,12 +140,12 @@ class Syllabifier:
         # ensure all the chars in word are defined in vowels or onsets
         unknown = self._unknown_char(word)
         if unknown:
-            raise RuntimeError(
+            raise UnknownSymbolError(
                 'unknown symbol "{}" in word "{}"'.format(unknown, word))
 
         # ensure the word contains at least a vowel
         if not self._has_vowels(word):
-            raise RuntimeError('no vowel in word "{}"'.format(word))
+            raise NoVowelError('no vowel in word "{}"'.format(word))
 
         input_word = list(word)
         output_word: List[str] = []
@@ -163,7 +172,7 @@ class Syllabifier:
         # removing syllable separators for a sanity check on onsets
         output_no_syll = [symbol for symbol in output_word if symbol != self.separator.syllable]
         if input_word != output_no_syll:
-            raise RuntimeError('onset not found in "{}"'.format(input_word,
+            raise NoOnsetError('onset not found in "{}"'.format(input_word,
                                                                 output_no_syll))
 
         return output_word

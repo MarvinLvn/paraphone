@@ -99,3 +99,7 @@ class Workspace:
     @property
     def logs(self) -> Path:
         return self.root_path / Path("logs/")
+
+    @property
+    def stats(self) -> Path:
+        return self.root_path / Path("stats/")

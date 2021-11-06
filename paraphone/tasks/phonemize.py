@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import List, Set, Iterable, Tuple
 
@@ -51,6 +52,7 @@ class PhonemizerWrapper(BasePhonemizer):
         dictionary_folder = workspace.dictionaries / Path(self.folder_name)
         self.folding_csv = FoldingCSV(dictionary_folder / Path("folding.csv"))
         self.folding_csv.load()
+        logging.getLogger("phonemizer").setLevel(logging.CRITICAL)
 
         self.lang = "fr-fr" if lang == "fr" else "en-us"
         self.separator = Separator(phone=" ", word=None)
@@ -107,6 +109,7 @@ class PhonemizeTask(BaseTask):
     creates = [
         "phonemized/all.csv"
     ]
+    stats_subpath = Path("phonemize.yml")
 
     def load_phonemizers(self, workspace: Workspace) -> List[BasePhonemizer]:
         raise NotImplemented()
@@ -114,8 +117,13 @@ class PhonemizeTask(BaseTask):
     def run(self, workspace: Workspace):
         workspace.phonemized.mkdir(parents=True, exist_ok=True)
         tokenized_words_csv = TokenizedTextCSV(workspace.tokenized / Path("all.csv"))
+
+        # loading phonemizer instances
         phonemizers = self.load_phonemizers(workspace)
         phonemized_words_csv = PhonemizedWordsCSV(workspace.phonemized / Path("all.csv"))
+
+        # building stats dict for phonemization
+        self._stats = {phnmzr.__class__.__name__: 0 for phnmzr in phonemizers}
 
         # set of all phonemized forms
         phonemized_words: Set[str] = set()
@@ -147,6 +155,9 @@ class PhonemizeTask(BaseTask):
                             break
                         else:
                             phonemized_words.add(phonetic_form)
+
+                        # logging the phonemization in the stats
+                        self._stats[phonemizer.__class__.__name__] += 1
 
                         dict_writer.writerow({
                             "word": word,

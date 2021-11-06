@@ -170,7 +170,7 @@ class DatasetImportTask(BaseTask):
                 logger.error(f"Dataset folder already exists: {err}")
                 return
         else:
-            logging.warning("No copy nor symlink action specified, aborting.")
+            logger.warning("No copy nor symlink action specified, aborting.")
             return
         logger.info("Done.")
 

@@ -4,7 +4,7 @@ from builtins import hasattr
 from pathlib import Path
 
 from .commands import WorkspaceInitCommand, ImportCommand, SetupDictionnaryCommand, TokenizeCommand, PhonemizeCommand, \
-    SyllabifyCommand
+    SyllabifyCommand, WuggyCommand
 from ..utils import stream_handler
 
 argparser = argparse.ArgumentParser("paraphone")
@@ -14,7 +14,8 @@ argparser.add_argument("-v", "--verbose", action="store_true",
 subparsers = argparser.add_subparsers()
 
 commands = [WorkspaceInitCommand, ImportCommand, SetupDictionnaryCommand,
-            TokenizeCommand, PhonemizeCommand, SyllabifyCommand]
+            TokenizeCommand, PhonemizeCommand, SyllabifyCommand,
+            WuggyCommand]
 
 for command in commands:
     subparser = subparsers.add_parser(command.COMMAND)

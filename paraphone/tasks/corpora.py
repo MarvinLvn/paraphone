@@ -77,7 +77,7 @@ class CorporaCreationTask(BaseTask):
                         else:
                             del family_words_dict[word]
 
-            logging.debug(f"Writing words list for family {family_id}")
+            logger.debug(f"Writing words list for family {family_id}")
             family_words_csv = TokenizedTextCSV(workspace.corpora /
                                                 Path(f"family_{family_id}.csv"))
             with family_words_csv.dict_writer as dict_writer:

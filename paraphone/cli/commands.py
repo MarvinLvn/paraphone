@@ -1,4 +1,3 @@
-import logging
 import sys
 from argparse import ArgumentParser, Namespace
 from os import cpu_count
@@ -14,7 +13,7 @@ from ..tasks.phonemize import PhonemizeFrenchTask, PhonemizeEnglishTask
 from ..tasks.syllabify import SyllabifyFrenchTask, SyllabifyEnglishTask
 from ..tasks.tokenize import TokenizeFrenchTask, TokenizeEnglishTask
 from ..tasks.workspace_init import WorkspaceInitTask
-from ..tasks.wuggy_gen import WuggyPrepareTask, WuggyGenerationTask
+from ..tasks.wuggy_gen import WuggyPrepareTask, WuggyGenerationFrTask, WuggyGenerationEnTask
 from ..utils import setup_file_handler, logger
 from ..workspace import Workspace
 
@@ -29,12 +28,15 @@ class BaseCommand:
 
     @classmethod
     def run_task(cls, task: BaseTask, workspace: Workspace):
-        logging.debug(f"Checking requirements for task {task.__class__.__name__}")
+        logger.debug(f"Checking requirements for task {task.__class__.__name__}")
         task.check_requirements(workspace)
         logger.info(f"Running task {task.__class__.__name__}")
         task.run(workspace)
-        logging.debug(f"Checking output for task {task.__class__.__name__}")
+        logger.debug(f"Checking output for task {task.__class__.__name__}")
         task.check_output(workspace)
+        if task.stats:
+            logger.debug(f"Writing stats for task {task.__class__.__name__}")
+            task.write_stats(workspace)
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) \
@@ -166,8 +168,8 @@ class SetupDictionnaryCommand(BaseCommand):
                     INSEESetupTask(), PhonemizerSetupTask()]
         else:
             if args.celex_path is None:
-                logging.error("A path to the celex dataset has to be provided "
-                              "via the --celex_path argument")
+                logger.error("A path to the celex dataset has to be provided "
+                             "via the --celex_path argument")
                 return []
 
             return [CMUENSetupTask(), CelexSetupTask(args.celex_path), PhonemizerSetupTask()]
@@ -271,9 +273,15 @@ class WuggyGenerationCommand(BaseCommand):
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return WuggyGenerationTask(num_candidates=args.num_candidates,
-                                   high_overlap=args.high_overlap,
-                                   num_workers=args.num_workers)
+        lang = workspace.config["lang"]
+        if lang == "fr":
+            return WuggyGenerationFrTask(num_candidates=args.num_candidates,
+                                         high_overlap=args.high_overlap,
+                                         num_workers=args.num_workers)
+        else:
+            return WuggyGenerationEnTask(num_candidates=args.num_candidates,
+                                         high_overlap=args.high_overlap,
+                                         num_workers=args.num_workers)
 
 
 class WuggyCommand(CommandGroup):
