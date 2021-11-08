@@ -1,3 +1,0 @@
-
-- add config option to show file checking output as info
-- add config option for default verbose

@@ -10,11 +10,8 @@ from sortedcontainers import SortedDict
 from tqdm import tqdm
 
 from .base import BaseTask
-from ..utils import DICTIONARIES_FOLDER, logger, DATA_FOLDER
+from ..utils import DICTIONARIES_FOLDER, logger, DATA_FOLDER, Phoneme, Syllable
 from ..workspace import Workspace, WorkspaceCSV
-
-Phoneme = str
-Syllable = List[str]
 
 
 class DictionaryCSV(WorkspaceCSV):

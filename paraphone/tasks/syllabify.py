@@ -4,11 +4,10 @@ from typing import Tuple, List, Iterable, Dict
 from tqdm import tqdm
 
 from .base import BaseTask
-from .dictionaries import Phoneme, Syllable
 from .phonemize import PhonemizedWordsCSV
 from ..syllable_seg.separator import Separator
 from ..syllable_seg.syllabification import Syllabifier, NoVowelError, NoOnsetError, UnknownSymbolError
-from ..utils import logger
+from ..utils import logger, Phoneme, Syllable, parse_syllabic
 from ..workspace import Workspace, WorkspaceCSV
 
 
@@ -23,7 +22,7 @@ class SyllabifiedWordsCSV(WorkspaceCSV):
             for row in dict_reader:
                 yield (row["word"],
                        row["phonetic"].split(" "),
-                       [syllable.split(" ") for syllable in row["syllabic"].split("-")])
+                       parse_syllabic(row["syllabic"]))
 
     def to_dict(self) -> Dict[str, Tuple[List[Phoneme], List[Syllable]]]:
         return {word: (pho, syll) for word, pho, syll in self}

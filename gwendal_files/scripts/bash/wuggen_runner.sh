@@ -35,8 +35,7 @@ python2.7 src/main/python/generation_candidates_ipa_fr.py ../wuggydict/words.txt
 #g2p-seq2seq --decode ../wuggydict/test.g2p --model_dir ../models/g2p --output ../wuggydict/results.g2p
 ##train g2p p2g##train g2p p2g 5 epoch goog rapport
 CUDA_VISIBLE_DEVICES=1 g2p-seq2seq --train ../g2p-models/trainsets/train.g2p --model_dir ../g2p-models/g2p   --max_epochs 1 --reinit
-
- CUDA_VISIBLE_DEVICES=0 g2p-seq2seq --train ../g2p-models/trainsets/train.p2g --model_dir ../g2p-models/p2g/  --p2g --max_epochs 1 --reinit
+CUDA_VISIBLE_DEVICES=0 g2p-seq2seq --train ../g2p-models/trainsets/train.p2g --model_dir ../g2p-models/p2g/  --p2g --max_epochs 1 --reinit
  
  
 ## filter words (see before)

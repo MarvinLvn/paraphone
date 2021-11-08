@@ -7,9 +7,9 @@ from phonemizer import phonemize
 from phonemizer.separator import Separator
 
 from .base import BaseTask
-from .dictionaries import Phoneme, DictionaryCSV, FoldingCSV
+from .dictionaries import DictionaryCSV, FoldingCSV
 from .tokenize import TokenizedTextCSV
-from ..utils import count_lines, logger
+from ..utils import count_lines, logger, Phoneme
 from ..workspace import Workspace, WorkspaceCSV
 
 

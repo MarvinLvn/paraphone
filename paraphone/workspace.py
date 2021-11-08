@@ -93,6 +93,10 @@ class Workspace:
         return self.root_path / Path("wuggy/")
 
     @property
+    def candidates_filtering(self) -> Path:
+        return self.root_path / Path("candidates_filtering/")
+
+    @property
     def synth(self) -> Path:
         return self.root_path / Path("synth/")
 

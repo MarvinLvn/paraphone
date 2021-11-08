@@ -1,7 +1,12 @@
 import logging
 from datetime import datetime
+from itertools import tee
 from logging import StreamHandler, Formatter
 from pathlib import Path
+from typing import List
+
+Phoneme = str
+Syllable = List[str]
 
 DATA_FOLDER = Path(__file__).parent / Path("data")
 DICTIONARIES_FOLDER = DATA_FOLDER / Path("dictionaries/")
@@ -31,6 +36,13 @@ def pairwise(iterable):
     return zip(a, a)
 
 
+def consecutive_pairs(iterable):
+    "s -> (s0,s1), (s1,s2), (s2, s3), ..."
+    a, b = tee(iterable)
+    next(b, None)
+    return zip(a, b)
+
+
 def _count_generator(reader):
     b = reader(1024 * 1024)
     while b:
@@ -57,3 +69,7 @@ def null_logger():
     log = logging.getLogger("nulllogger")
     log.addHandler(logging.NullHandler())
     return log
+
+
+def parse_syllabic(syllabic_form: str) -> List[Syllable]:
+    return [syllable.split(" ") for syllable in syllabic_form.split("-")]

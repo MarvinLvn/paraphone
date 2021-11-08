@@ -148,23 +148,14 @@ class WuggyFreq:
         from {args.phoneset}_syllabify s INNER JOIN match m ON m.word=s.word  INNER JOIN cr0 c ON s.word=c.word order by c.count desc
             """
         rows = metadict.select(query)
-        total = sum([i[2] for i in rows])
-        query = f"""select sum(count) from cr0 INNER JOIN match on cr0.word=match.word where matching=1 and del=0"""
-        total = metadict.select(query)[0][0]
-        #         print(total)
         with open(args.output, "w") as f:
             for trans, syll, count in rows:
-                #                 print( trans, count)
-                trans = " ".join(re.split(r"[ ;]", trans))
                 syll = " ".join(re.split(r"[;]", syll))
-
                 syll = " ".join(re.split(r"[_]", syll))
                 syll = " ".join([i for i in syll.split(" ") if i != ""])
                 count = str(count)
                 if len([i for i in "".join(re.split(r"[:-]", syll)) if i != ""]) == 0:
                     continue
-                #                 syll = syll.strip(" ")
-                #                 syll= syll.strip(" ̃")
                 f.write(f"{syll}\t{count}\n")
 
 

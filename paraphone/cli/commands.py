@@ -246,18 +246,9 @@ class SyllabifyCommand(BaseCommand):
             return SyllabifyEnglishTask()
 
 
-class WuggyPrepareCommand(BaseCommand):
-    COMMAND = "prepare"
-    DESCRIPTION = "Prepare dataset for wuggy generation"
-
-    @classmethod
-    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return WuggyPrepareTask()
-
-
-class WuggyGenerationCommand(BaseCommand):
-    COMMAND = "gen"
-    DESCRIPTION = "Generate fake words with wuggy"
+class WuggyCommand(BaseCommand):
+    COMMAND = "wuggy"
+    DESCRIPTION = "Prepare dataset for wuggy and run fake word generation"
 
     @classmethod
     def init_parser(cls, parser: ArgumentParser):
@@ -273,21 +264,17 @@ class WuggyGenerationCommand(BaseCommand):
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        tasks = [WuggyPrepareTask()]
         lang = workspace.config["lang"]
+        kwargs = {'num_candidates': args.num_candidates,
+                  'high_overlap': args.high_overlap,
+                  'num_workers': args.num_workers}
         if lang == "fr":
-            return WuggyGenerationFrTask(num_candidates=args.num_candidates,
-                                         high_overlap=args.high_overlap,
-                                         num_workers=args.num_workers)
+            tasks.append(WuggyGenerationFrTask(**kwargs))
         else:
-            return WuggyGenerationEnTask(num_candidates=args.num_candidates,
-                                         high_overlap=args.high_overlap,
-                                         num_workers=args.num_workers)
+            tasks.append(WuggyGenerationEnTask(**kwargs))
 
-
-class WuggyCommand(CommandGroup):
-    COMMAND = "wuggy"
-    DESCRIPTION = "Wuggy fake word generation command"
-    SUBCOMMANDS = [WuggyPrepareCommand, WuggyGenerationCommand]
+        return tasks
 
 
 class FilterNgramCommand(BaseCommand):

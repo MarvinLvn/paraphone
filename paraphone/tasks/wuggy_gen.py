@@ -2,7 +2,7 @@ import random
 import re
 from pathlib import Path
 from types import ModuleType
-from typing import Dict, List, Set
+from typing import Set, Iterable, Tuple, List
 
 from tqdm import tqdm
 from wuggy_ng import Generator
@@ -10,7 +10,7 @@ from wuggy_ng import Generator
 from .base import BaseTask
 from .syllabify import SyllabifiedWordsCSV
 from .tokenize import TokenizedTextCSV
-from ..utils import logger
+from ..utils import logger, Phoneme, Syllable, parse_syllabic
 from ..workspace import WorkspaceCSV, Workspace
 from ..wuggy_plugins import phonetic_fr_ipa, phonetic_en_ipa
 
@@ -27,6 +27,17 @@ class FakeWordsCandidatesCSV(WorkspaceCSV):
 
     def __init__(self, file_path: Path):
         super().__init__(file_path, separator="\t", header=self.header)
+
+    def __iter__(self) -> Iterable[Tuple[str,
+                                         List[Phoneme], List[Syllable],
+                                         List[Phoneme], List[Syllable]]]:
+        with self.dict_reader as dict_reader:
+            for row in dict_reader:
+                yield (row["word"],
+                       row["phonetic"].split(" "),
+                       parse_syllabic(row["syllabic"]),
+                       row["fake-phonetic"].split(" "),
+                       parse_syllabic(row["fake-syllabic"]))
 
 
 class WuggyPrepareTask(BaseTask):
@@ -95,7 +106,7 @@ class WuggyGenerationTask(BaseTask):
         self.num_workers = num_workers
 
     @classmethod
-    def normalize_wuggy_syllabic(cls, wuggy_syllabic : str) -> str:
+    def normalize_wuggy_syllabic(cls, wuggy_syllabic: str) -> str:
         normalized = cls.pho_sub_re.sub(" ", wuggy_syllabic)
         normalized = cls.dash_sub_re.sub("- ", normalized)
         normalized = normalized.strip()
@@ -147,7 +158,7 @@ class WuggyGenerationTask(BaseTask):
                                                   / Path("syllabic.csv")).to_dict()
 
         # loading what's needed for wuggy, and instantiating wuggy generator
-        random.seed(4577) # setting seed for deterministic output
+        random.seed(4577)  # setting seed for deterministic output
         lexicon_path = workspace.wuggy / Path("lexicon.csv")
         words_path = workspace.wuggy / Path("words.txt")
         self.set_wuggy_plugin_params(lexicon_path, self.wuggy_plugin)
@@ -184,7 +195,6 @@ class WuggyGenerationTask(BaseTask):
                         "fake-phonetic": fake_word_pho,
                         "fake-syllabic": fake_word_syll
                     })
-
 
 
 class WuggyGenerationFrTask(WuggyGenerationTask):
