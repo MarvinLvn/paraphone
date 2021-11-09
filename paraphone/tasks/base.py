@@ -1,6 +1,7 @@
 import abc
+import re
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Iterable, Tuple
 
 import yaml
 
@@ -35,7 +36,7 @@ class BaseTask(metaclass=abc.ABCMeta):
                 if file_path.exists():
                     logger.debug(f"Found required file {file_path}")
                 else:
-                    raise FileNotFoundError(f"File {file_path} was not created.")
+                    raise FileNotFoundError(f"Requirement file {file_path} not found.")
 
     def check_output(self, workspace: Workspace):
         """Checks the presence of created files"""
@@ -64,3 +65,13 @@ class BaseTask(metaclass=abc.ABCMeta):
     # @abstractmethod
     def run(self, workspace: Workspace):
         pass
+
+
+class CorporaTaskMixin:
+    corpus_name_re = re.compile(r"corpus_([0-9]+)")
+
+    def iter_corpora(self, folder: Path) -> Iterable[Tuple[int, Path]]:
+        for filepath in folder.iterdir():
+            re_match = self.corpus_name_re.match(filepath.name)
+            if re_match is not None:
+                yield int(re_match[1], filepath)

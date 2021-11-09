@@ -105,7 +105,8 @@ class TokenizeTask(BaseTask):
 
         # for each text file in dataset, tokenize
         dataset_pbar = tqdm(list(dataset_index))
-        for text_id, text_path in dataset_pbar:
+        for text_id, text_rel_path in dataset_pbar:
+            text_path = workspace.root_path / text_rel_path
             dataset_pbar.set_description(f"For {text_id}")
             try:
                 self.tokenize_file(text_id, text_path, all_tokenized_words, workspace)

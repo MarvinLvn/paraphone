@@ -19,7 +19,7 @@ class CorporaCreationTask(BaseTask):
     compted from the intersection of the words of the texts from the families'
     groups"""
     requires = [
-        "datasets/tokenized/*.csv",
+        "datasets/tokenized/all.csv",
         "datasets/families/*/*.txt"
     ]
 
@@ -29,17 +29,16 @@ class CorporaCreationTask(BaseTask):
     ]
 
     def load_group_words(self, group: Set[FileID], workspace: Workspace) -> Counter:
-        tokenized_folder = workspace.root_path / Path("datasets/tokenized/")
+        tokenized_folder = workspace.root_path / Path("datasets/tokenized/per_text/")
 
         group_words = Counter()
         for file_id in group:
+            tokenized_file = TokenizedTextCSV(tokenized_folder / Path(f"{file_id}.csv"))
             try:
-                tokenized_file = TokenizedTextCSV(tokenized_folder / Path(f"{file_id}.csv"))
-            except FileNotFoundError:
-                logger.warning(f"Counld't find tokinzed text file {file_id}.csv")
-                continue
-            else:
                 group_words.update(tokenized_file.to_dict())
+            except FileNotFoundError:
+                logger.warning(f"Couldn't find tokenized text file {file_id}.csv")
+                continue
 
         return group_words
 
@@ -48,7 +47,7 @@ class CorporaCreationTask(BaseTask):
 
         logger.info("Building families words lists...")
         families_folder = workspace.datasets / Path("families/")
-        pbar = tqdm(list(workspace.corpora.iterdir()))
+        pbar = tqdm(list(families_folder.iterdir()))
         for family_folder in pbar:
             family_folder: Path
             assert family_folder.is_dir()
@@ -57,11 +56,11 @@ class CorporaCreationTask(BaseTask):
 
             family_words_dict = None
             for group_filepath in family_folder.iterdir():
-                pbar.set_description(f"Family {family_id}: {group_file.name}")
+                pbar.set_description(f"Family {family_id}: {group_filepath.name}")
 
                 assert group_filepath.is_file()
                 with open(group_filepath) as group_file:
-                    group = set(list(group_file))
+                    group = set(file_id for file_id in group_file.read().split("\n") if file_id)
                 group_words_dict = self.load_group_words(group, workspace)
 
                 # the first group is taken as base for the intersection
@@ -79,7 +78,7 @@ class CorporaCreationTask(BaseTask):
 
             logger.debug(f"Writing words list for family {family_id}")
             family_words_csv = TokenizedTextCSV(workspace.corpora /
-                                                Path(f"family_{family_id}.csv"))
+                                                Path(f"corpus_{family_id}.csv"))
             with family_words_csv.dict_writer as dict_writer:
                 dict_writer.writeheader()
                 for word, count in family_words_dict.items():

@@ -78,12 +78,9 @@ class DatasetIndexCSV(WorkspaceCSV):
                     for file_id, file_path in self._entries.items()])
 
     def __iter__(self) -> Iterable[Tuple[FileID, Path]]:
-        dataset_path = self.file_path.parent.parent
         with self.dict_reader as dict_reader:
             for row in dict_reader:
-                path = (dataset_path / Path(row["file_path"]))
-                assert path.exists()
-                yield row["file_id"], path
+                yield row["file_id"], Path(row["file_path"])
 
     def to_dict(self):
         return {file_id: file_path for file_id, file_path in self}
@@ -186,6 +183,7 @@ class DatasetImportTask(BaseTask):
         added_count = 0
         for file_id, file_path in importer:
             added_count += 1
+
             dataset_csv.add_entry(file_id, file_path)
         dataset_csv.write_entries()
         logger.info(f"Update done. Added {added_count} texts to index.")
@@ -198,7 +196,7 @@ class FamiliesImportTask(BaseTask):
 
     requires = [
         "datasets/index.csv",
-        "config.csv"
+        "config.yml"
     ]
 
     creates = [

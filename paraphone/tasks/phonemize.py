@@ -1,15 +1,15 @@
 import logging
 from pathlib import Path
-from typing import List, Set, Iterable, Tuple
+from typing import List, Set, Iterable, Tuple, Dict
 
 import tqdm
-from phonemizer import phonemize
+from phonemizer.backend import EspeakBackend
 from phonemizer.separator import Separator
 
 from .base import BaseTask
 from .dictionaries import DictionaryCSV, FoldingCSV
 from .tokenize import TokenizedTextCSV
-from ..utils import count_lines, logger, Phoneme
+from ..utils import count_lines, logger, Phoneme, null_logger
 from ..workspace import Workspace, WorkspaceCSV
 
 
@@ -23,6 +23,9 @@ class PhonemizedWordsCSV(WorkspaceCSV):
         with self.dict_reader as dict_reader:
             for row in dict_reader:
                 yield row["word"], row["phones"].split(" ")
+
+    def to_dict(self) -> Dict[str, List[Phoneme]]:
+        return {word: phonemes for word, phonemes in self}
 
 
 class BasePhonemizer:
@@ -56,17 +59,18 @@ class PhonemizerWrapper(BasePhonemizer):
 
         self.lang = "fr-fr" if lang == "fr" else "en-us"
         self.separator = Separator(phone=" ", word=None)
+        self.backend = EspeakBackend(
+            self.lang,
+            language_switch="remove-utterance",
+            logger=null_logger())
 
     def phonemize(self, word: str) -> List[str]:
-        phonemized = phonemize(word,
-                               language=self.lang,
-                               separator=self.separator,
-                               strip=True,
-                               language_switch="remove-utterance")
-        if not phonemized:
+        phonemized = self.backend.phonemize(text=[word],
+                                            separator=self.separator,
+                                            strip=True)
+        if not phonemized[0]:
             raise KeyError(word)
-
-        return phonemized.strip().split(" ")
+        return phonemized[0].strip().split(" ")
 
 
 class CMUFrenchPhonemizer(BasePhonemizer):
