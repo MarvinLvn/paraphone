@@ -8,7 +8,7 @@ from ..base import BaseTask
 from ..syllabify import SyllabifiedWordsCSV
 from ..tokenize import TokenizedTextCSV
 from ..wuggy_gen import FakeWordsCandidatesCSV
-from ...ngram_tools.ngrams import NGramComputer
+from ...ngram_tools.ngrams import NGramComputer, Ngram
 from ...utils import logger, Phoneme, consecutive_pairs, count_lines
 from ...workspace import Workspace, WorkspaceCSV
 
@@ -43,7 +43,6 @@ class PhonemizedWordsFrequencyCSV(WorkspaceCSV):
 class NgramScoringTask(BaseFilteringTask):
     requires = [
         "datasets/tokenized/all.csv",  # used for word frequency (not normalized)
-        "phonemized/syllabic.csv",
         "wuggy/candidates.csv",
         "candidates_filtering/steps/*"
     ]
@@ -54,9 +53,7 @@ class NgramScoringTask(BaseFilteringTask):
     ]
 
     def run(self, workspace: Workspace):
-        # NOTES :
-        # freqseq = frequency of each phonemized word (phon_ipa, freq)
-        # input_file = phonemized word/ phonemized fake word couples
+        # TODO: comment this for E.D.
 
         # firstly, generate the phonemized word -> frequency csv
         # from the syllabic CSV (some useless words are filtered out)
@@ -112,36 +109,43 @@ class NgramBuildCategoriesTask(BaseFilteringTask):
 
     def run(self, workspace: Workspace):
         parser = argparse.ArgumentParser()
+        # note :
+        # - "path pairs" -> word/non words phonetic pairs
+        # - "freq_path" -> frequency of each phonemized word
+        # - output -> same thing, but with phoneme length added
+        # This doesn't seem to be useful in any significant way
         parser.add_argument('path_pairs', help='Path to the file with ARPA pairs of words/non-words')
         parser.add_argument('freq_path', help='Path to output matching words')
         parser.add_argument('output_path', help='Type of token that is being processed', type=str)
         args = parser.parse_args()
 
-        f = open(args.freq_path, "r")
-        i = open(args.path_pairs, "r")
-        g = open(args.output_path, "w+")
-        m = f.readlines()
-        n = i.readlines()
-        d = {}
+        freq_file = open(args.freq_path, "r")
+        pairs_file = open(args.path_pairs, "r")
+        output_file = open(args.output_path, "w+")
+        phonetic_frequencies_lines = freq_file.readlines()
+        pairs = pairs_file.readlines()
+        pho_freqs = {}
         c = 0
-        for elem in m:
-            d[elem.split('\t')[0].replace('1', '0')] = elem.split('\t')[1].split('\n')[0]
+        for elem in phonetic_frequencies_lines:
+            pho_form = elem.split('\t')[0]
+            count = elem.split('\t')[1]
+            pho_freqs[pho_form] = count
         words = []
-        for j in range(1, len(n)):
-            words.append(n[j].split('\t')[0])
+        for j in range(1, len(pairs)):
+            words.append(pairs[j].split('\t')[0])
         s = set(words)
-        g.write("Word" + '\t' + 'length_phone' + '\t' + 'freq' + '\n')
+        output_file.write("Word" + '\t' + 'length_phone' + '\t' + 'freq' + '\n')
         for w in s:
             try:
-                g.write(w + '\t' + str(len(w.split(' '))) + '\t' + str(d[w.replace('1', '0')]) + '\n')
+                output_file.write(w + '\t' + str(len(w.split(' '))) + '\t' + str(pho_freqs[w]) + '\n')
             except KeyError:
-                g.write(w + '\t' + str(len(w.split(' '))) + '\t' + str(1) + '\n')
+                output_file.write(w + '\t' + str(len(w.split(' '))) + '\t' + str(1) + '\n')
                 print(w)
                 c += 1
         print('Unrecognized word : {} out of '.format(c) + str(len(s)))
-        g.close()
-        f.close()
-        i.close()
+        output_file.close()
+        freq_file.close()
+        pairs_file.close()
 
 
 class NgramBalanceScoresTask(BaseTask):

@@ -1,4 +1,6 @@
 import logging
+import typing
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import List, Set, Iterable, Tuple, Dict
 
@@ -26,6 +28,16 @@ class PhonemizedWordsCSV(WorkspaceCSV):
 
     def to_dict(self) -> Dict[str, List[Phoneme]]:
         return {word: phonemes for word, phonemes in self}
+
+    @property
+    def unique_phonemic(self):
+        phonemic = set()
+        with self.dict_reader as dict_reader:
+            for row in dict_reader:
+                if row["phones"] in phonemic:
+                    continue
+                phonemic.add(row["phones"])
+                yield row["phones"].split(" ")
 
 
 class BasePhonemizer:
@@ -127,10 +139,10 @@ class PhonemizeTask(BaseTask):
         phonemized_words_csv = PhonemizedWordsCSV(workspace.phonemized / Path("all.csv"))
 
         # building stats dict for phonemization
-        self._stats = {phnmzr.__class__.__name__: 0 for phnmzr in phonemizers}
+        self.stats = {phnmzr.__class__.__name__: 0 for phnmzr in phonemizers}
 
-        # set of all phonemized forms
-        phonemized_words: Set[str] = set()
+        # number of words per unique phonemic form
+        phonemized_counter: typing.Counter[str] = Counter()
 
         # computing length of tokenized words file
         pbar = tqdm.tqdm(total=count_lines(tokenized_words_csv.file_path))
@@ -154,14 +166,10 @@ class PhonemizeTask(BaseTask):
                     else:
                         # if current word's phonetic form is already present,
                         # ignore word (else, add it to the current set of phonemized words)
-                        phonetic_form = "".join(folded_phones)
-                        if phonetic_form in phonemized_words:
-                            break
-                        else:
-                            phonemized_words.add(phonetic_form)
+                        phonemized_counter["".join(folded_phones)] += 1
 
                         # logging the phonemization in the stats
-                        self._stats[phonemizer.__class__.__name__] += 1
+                        self.stats[phonemizer.__class__.__name__] += 1
 
                         dict_writer.writerow({
                             "word": word,
@@ -170,6 +178,9 @@ class PhonemizeTask(BaseTask):
                         break
                 else:
                     logger.warning(f"Couldn't phonemize word {word}")
+
+        # storing the number of unique phonetic forms and n-plicates phonetic form
+        self.stats["n_plicates_count"] = dict(Counter(phonemized_counter.values()))
 
 
 class PhonemizeFrenchTask(PhonemizeTask):

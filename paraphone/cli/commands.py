@@ -10,6 +10,7 @@ from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTas
     PhonemizerSetupTask
 from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleSpeakCredentials
 from ..tasks.phonemize import PhonemizeFrenchTask, PhonemizeEnglishTask
+from ..tasks.stats import CorporaNgramStatsTask
 from ..tasks.syllabify import SyllabifyFrenchTask, SyllabifyEnglishTask
 from ..tasks.tokenize import TokenizeFrenchTask, TokenizeEnglishTask
 from ..tasks.workspace_init import WorkspaceInitTask
@@ -296,3 +297,18 @@ class FilterCommand(CommandGroup):
     COMMAND = "filter"
     DESCRIPTION = "Filter out real words/fake words candidates pair using various methods"
     SUBCOMMANDS = [FilterNgramCommand, FilterP2GCommand, FilterP2GtoG2PCommand]
+
+
+class CorporaNgramStats(BaseCommand):
+    COMMAND = "corpora-ngram"
+    DESCRIPTION = "Compute Ngrams for each corpus"
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return CorporaNgramStatsTask()
+
+
+class StatsCommand(CommandGroup):
+    COMMAND = "stats"
+    DESCRIPTION = "Statistics on the pipeline's steps"
+    SUBCOMMANDS = [CorporaNgramStats]

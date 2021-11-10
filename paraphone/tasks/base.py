@@ -58,8 +58,9 @@ class BaseTask(metaclass=abc.ABCMeta):
                     logger.warning(f"File {file_path} was not created.")
 
     def write_stats(self, workspace: Workspace):
+        (workspace.stats / self.stats_subpath).parent.mkdir(parents=True, exist_ok=True)
         if self.stats_subpath is not None:
-            with open(workspace.stats / self.stats_subpath) as stats_file:
+            with open(workspace.stats / self.stats_subpath, "w") as stats_file:
                 yaml.safe_dump(self.stats, stats_file)
 
     # @abstractmethod
@@ -74,4 +75,4 @@ class CorporaTaskMixin:
         for filepath in folder.iterdir():
             re_match = self.corpus_name_re.match(filepath.name)
             if re_match is not None:
-                yield int(re_match[1], filepath)
+                yield int(re_match[1]), filepath

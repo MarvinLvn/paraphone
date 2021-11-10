@@ -62,7 +62,7 @@ class SyllabifyTask(BaseTask):
         phonemized_words_csv = PhonemizedWordsCSV(phonemized_words_path)
 
         # building the stats dict for failed syllabification
-        self._stats = {err.__class__: 0 for err in [NoVowelError,
+        self.stats = {err.__class__: 0 for err in [NoVowelError,
                                                     NoOnsetError,
                                                     UnknownSymbolError]}
 
@@ -75,7 +75,7 @@ class SyllabifyTask(BaseTask):
                 syll_form = syllabifier.syllabify(pho_form, strip=True)
             except RuntimeError as err:
                 logger.debug(f"Couldn't syllabify {pho_form}: {err}")
-                self._stats[err.__class__] += 1
+                self.stats[err.__class__] += 1
                 syllabic_forms.append(None)
             else:
                 syllabic_forms.append(syll_form)
@@ -100,8 +100,8 @@ class SyllabifyTask(BaseTask):
                 syllabified_count += 1
 
         logger.info(f"Syllabifyed {syllabified_count} words")
-        logger.info(f"Dropped {sum(self._stats.values())} words because of syllabification errors")
-        for err_type, count in self._stats.items():
+        logger.info(f"Dropped {sum(self.stats.values())} words because of syllabification errors")
+        for err_type, count in self.stats.items():
             logger.info(f"- {count} dropped because of {err_type}")
 
 

@@ -298,16 +298,16 @@ if __name__ == "__main__":
         for i, cat in enumerate(category_names):
             if "freq" in cat:
                 freq_idx = i
-        n_catgories = len(category_names)
+        n_categories = len(category_names)
         category_dicts = {cat: {} for cat in category_names}
         category_combine_dict = {}
         for line in lines[1:-1]:
-            word = " ".join(line.split()[:-n_catgories])
-            cats = line.split()[-n_catgories:]
+            word = " ".join(line.split()[:-n_categories])
+            cats = line.split()[-n_categories:]
             if freq_idx >= 0:
                 cats[freq_idx] = rank(cats[freq_idx])
             category_combine_dict[word] = tuple(cats)
-            for i in range(n_catgories):
+            for i in range(n_categories):
                 category_dicts[category_names[i]][word] = cats[i]
     else:
         category_dicts = None

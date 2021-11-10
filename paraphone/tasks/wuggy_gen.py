@@ -15,6 +15,7 @@ from ..workspace import WorkspaceCSV, Workspace
 from ..wuggy_plugins import phonetic_fr_ipa, phonetic_en_ipa
 
 
+# TODO: make it per subcorpus
 class WuggyLexiconCSV(WorkspaceCSV):
     header = ["word", "syllabic", "frequency"]
 

@@ -76,11 +76,14 @@ class TokenizeTask(BaseTask):
                 candidates = cleaned_line.split()
 
                 # for each word candidate:
+                # - one-letter candidates are excluded (not interesting in our case)
                 # - test if it's in any of the dictionnaries, in their order
                 # - if it's in none of them and contains a "-", add the
                 # candidate's subwords as future candidates
                 while candidates:
                     word_candidate = candidates.pop().lower()
+                    if len(word_candidate) == 1:
+                        continue
                     for word_dict in self._dictionaries:
                         if word_candidate in word_dict:
                             tokenization_csv.add_word(word_candidate)

@@ -8,3 +8,7 @@ class BaseFilteringTask(BaseTask):
 
     def previous_step_filepath(self, workspace: Workspace) -> Path:
         pass
+
+
+class InitFilteringTask(BaseFilteringTask):
+    pass
