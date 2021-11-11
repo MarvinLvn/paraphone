@@ -52,6 +52,7 @@ Example of input files:
 
 import argparse
 import random
+from typing import List, Dict, Optional, Tuple
 
 
 def score_with_equal(logprobs, verbose=False):
@@ -149,9 +150,10 @@ def f_obj(current_score_list):
     return obj
 
 
-def choose_nonword_random_with_objective_with_category(list_of_score_dict,
-                                                       word_nonword_dict,
-                                                       category_dict=None):
+def choose_nonword_random_with_objective_with_category(
+        list_of_score_dict: List[Dict[str, float]],
+        word_nonword_dict: Dict[str, List[str]],
+        category_dict: Optional[Dict[str, Tuple[...]]] = None):
     """
     Main function of the algorithm described above. Also balance within
     the categories of the words if given, for ex:
@@ -160,21 +162,25 @@ def choose_nonword_random_with_objective_with_category(list_of_score_dict,
           arc : lowfreq,
           ...}
     """
+    # if no categories, assign category of 1 to each word
     if category_dict is None:
         category_dict = {word: 1 for word in word_nonword_dict}
+    # build a set of all categories
     categories = set(category_dict.values())
 
-    n = len(list_of_score_dict)
+    nb_of_scores = len(list_of_score_dict)
 
-    succeed_count = 0
-    all_count = 0
+    # seems to build a large table of statistics of shape
+    # (n_categories, 1 + nb_scores + nb_scores)
     all_stats_dict = {}
     for cat in categories:
         all_stats_dict[cat] = []
         all_stats_dict[cat].append(0)  # current_count
-        all_stats_dict[cat].append([0.] * n)  # current_true_counts
-        all_stats_dict[cat].append([0.] * n)  # current_scores
+        all_stats_dict[cat].append([0.] * nb_of_scores)  # current_true_counts
+        all_stats_dict[cat].append([0.] * nb_of_scores)  # current_scores
 
+    succeed_count = 0
+    all_count = 0
     word_nonword_chosen = []
     nonword_set = set()
     correct_words = list(word_nonword_dict.keys())  # List of keys
@@ -183,12 +189,15 @@ def choose_nonword_random_with_objective_with_category(list_of_score_dict,
         cat = category_dict[word]
         current_count = all_stats_dict[cat][0]
         current_true_counts = all_stats_dict[cat][1]
+        # actually just "true_count" normalized by "current_count", for each category
         current_scores = all_stats_dict[cat][2]
 
         nonword_list = word_nonword_dict[word].copy()
 
+        # objective is computed for the real word for current scores
+        # (for the real word's category)
         objective = f_obj(current_scores)
-        # random.shuffle(nonword_list)
+
         succeed = 0
         for nonword in nonword_list:
             if nonword not in nonword_set:
@@ -203,13 +212,15 @@ def choose_nonword_random_with_objective_with_category(list_of_score_dict,
                     scr = (true_count + true_score) / (current_count + 1)
                     new_scores.append(scr)
 
-                new_objective = f_obj(new_scores)
+                fake_word_objective = f_obj(new_scores)
 
-                if new_objective < objective:
+                # if current fake_word obj is lower than real_word objective,
+                # this one gets picked?
+                if fake_word_objective < objective:
                     succeed = 1
                     break
 
-        # Randomly redice
+        # Randomly pick a fake word instead of trying to optimize
         if succeed == 0:
             nonword = random.choice(nonword_list)
 
@@ -217,12 +228,13 @@ def choose_nonword_random_with_objective_with_category(list_of_score_dict,
         all_count += 1
 
         word_nonword_chosen.append(word)
+        # super dangerous: last fake word in iteration is chosen for the current real word
         word_nonword_chosen.append(nonword)
         nonword_set.add(nonword)
 
         # Update statistics
         all_stats_dict[cat][0] += 1
-        for i in range(n):
+        for i in range(nb_of_scores):
             if list_of_score_dict[i][word] > list_of_score_dict[i][nonword]:
                 true_score = 1.
             elif list_of_score_dict[i][word] == list_of_score_dict[i][nonword]:
@@ -304,6 +316,7 @@ if __name__ == "__main__":
         for line in lines[1:-1]:
             word = " ".join(line.split()[:-n_categories])
             cats = line.split()[-n_categories:]
+            # for the frequency "score", bin it with a rank
             if freq_idx >= 0:
                 cats[freq_idx] = rank(cats[freq_idx])
             category_combine_dict[word] = tuple(cats)
@@ -315,7 +328,7 @@ if __name__ == "__main__":
 
     word_nonword_list = choose_nonword_random_with_objective_with_category(score_dict_list, word_nonword_dict,
                                                                            category_dict=category_combine_dict)
-
+    # just printing the results for each category
     if category_dicts is not None:
         for category_type in category_dicts:
             if "freq" in category_type:
@@ -323,7 +336,9 @@ if __name__ == "__main__":
                       "(the threshold frequencies can be changed by changing the 'interval' inside the function rank().)")
             else:
                 print("Scores by each category of", category_type)
-            scoring_with_categories(word_nonword_list, score_dict_list, categoriy_dict=category_dicts[category_type])
+            scoring_with_categories(word_nonword_list,
+                                    score_dict_list,
+                                    categoriy_dict=category_dicts[category_type])
 
     # Final score
     for i in range(n_scores):
@@ -334,6 +349,7 @@ if __name__ == "__main__":
     # Write the output
     lines_out = ["Word\tMatch"]
     word_nonword_list = sort_word_nonword_list(word_nonword_list)
+    # the "modulus" iteration is here because the word/nonwords are interwoven in the same list
     for i in range(len(word_nonword_list) // 2):
         lines_out.append("\t".join([word_nonword_list[2 * i], word_nonword_list[2 * i + 1]]))
 

@@ -1,14 +1,13 @@
+from collections import defaultdict
 from pathlib import Path
 from typing import Iterable, List, Tuple, Set
 
 from tqdm import tqdm
 
-from .base import BaseFilteringTask
-from ..base import BaseTask
+from .base import BaseFilteringTask, CandidatesPairCSV, WordPair
 from ..syllabify import SyllabifiedWordsCSV
 from ..tokenize import TokenizedTextCSV
-from ..wuggy_gen import FakeWordsCandidatesCSV
-from ...ngram_tools.ngrams import NGramComputer, Ngram
+from ...ngram_tools.ngrams import NGramComputer, FakeWordsBalancer, abs_sum_score_fn, rank
 from ...utils import logger, Phoneme, consecutive_pairs, count_lines
 from ...workspace import Workspace, WorkspaceCSV
 
@@ -80,13 +79,14 @@ class NgramScoringTask(BaseFilteringTask):
         unigram_unbounded = ngram_computer.unigrams(bounded=False)
 
         logger.info("Computing ngram scores over the wuggy real words/fake words pairs")
-        candidates_csv = FakeWordsCandidatesCSV(self.previous_step_filepath(workspace))
-        ngrams_scores_csv = NgramScoresCSV(workspace.candidates_filtering / Path("ngrams/scores.csv"))
-        candidates_count = count_lines(self.previous_step_filepath(workspace))
+        last_step_path, last_step_id = self.previous_step_filepath(workspace)
+        candidates_csv = CandidatesPairCSV(last_step_path)
+        ngrams_scores_csv = CandidatesPairCSV(workspace.candidates_filtering / Path("ngrams/scores.csv"))
+        candidates_count = count_lines(last_step_path)
         phonetic_forms: Set[Tuple[str]] = set()
         with ngrams_scores_csv.dict_writer as dict_writer:
             dict_writer.writeheader()
-            for _, phonetic, _, fake_phonetic, _ in tqdm(candidates_csv, total=candidates_count):
+            for _, phonetic, fake_phonetic in tqdm(candidates_csv, total=candidates_count):
                 for phonemes in (phonetic, fake_phonetic):
                     if tuple(phonemes) in phonetic_forms:
                         continue
@@ -96,57 +96,63 @@ class NgramScoringTask(BaseFilteringTask):
                            "unigram_unbounded": ngram_computer.to_ngram_logprob(
                                phonemes_bounded, unigram_unbounded),
                            "unigram_bounded": ngram_computer.to_ngram_logprob(
-                            phonemes, unigram_bounded),
+                               phonemes, unigram_bounded),
                            "bigram_unbounded": ngram_computer.to_ngram_logprob(
-                            consecutive_pairs(phonemes_bounded), bigrams_unbounded),
+                               consecutive_pairs(phonemes_bounded), bigrams_unbounded),
                            "bigram_bounded": ngram_computer.to_ngram_logprob(
-                            consecutive_pairs(phonemes), bigrams_bounded)
+                               consecutive_pairs(phonemes), bigrams_bounded)
                            }
                     dict_writer.writerow(row)
 
 
-class NgramBuildCategoriesTask(BaseFilteringTask):
+class NgramBalanceScoresTask(BaseFilteringTask):
+    """Use computed ngram scores to select only one fake word candidate per
+    real word"""
+
+    requires = [
+        "candidates_filtering/ngram/phonemized_words_frequencies.csv",
+        "candidates_filtering/ngram/scores.csv",
+    ]
+
+    def __init__(self):
+        super().__init__()
+        self.chosen_fake_words: Set[str] = set()
+
+    def filter_fn(self, word_pair: WordPair) -> bool:
+        return word_pair in self.chosen_fake_words
 
     def run(self, workspace: Workspace):
-        parser = argparse.ArgumentParser()
-        # note :
-        # - "path pairs" -> word/non words phonetic pairs
-        # - "freq_path" -> frequency of each phonemized word
-        # - output -> same thing, but with phoneme length added
-        # This doesn't seem to be useful in any significant way
-        parser.add_argument('path_pairs', help='Path to the file with ARPA pairs of words/non-words')
-        parser.add_argument('freq_path', help='Path to output matching words')
-        parser.add_argument('output_path', help='Type of token that is being processed', type=str)
-        args = parser.parse_args()
+        ngram_data_folder = workspace.candidates_filtering / Path("ngram")
+        freqs_csv = PhonemizedWordsFrequencyCSV(ngram_data_folder / Path("phonemized_words_frequencies.csv"))
+        scores_csv = NgramScoresCSV(ngram_data_folder / Path("scores.csv"))
 
-        freq_file = open(args.freq_path, "r")
-        pairs_file = open(args.path_pairs, "r")
-        output_file = open(args.output_path, "w+")
-        phonetic_frequencies_lines = freq_file.readlines()
-        pairs = pairs_file.readlines()
-        pho_freqs = {}
-        c = 0
-        for elem in phonetic_frequencies_lines:
-            pho_form = elem.split('\t')[0]
-            count = elem.split('\t')[1]
-            pho_freqs[pho_form] = count
-        words = []
-        for j in range(1, len(pairs)):
-            words.append(pairs[j].split('\t')[0])
-        s = set(words)
-        output_file.write("Word" + '\t' + 'length_phone' + '\t' + 'freq' + '\n')
-        for w in s:
-            try:
-                output_file.write(w + '\t' + str(len(w.split(' '))) + '\t' + str(pho_freqs[w]) + '\n')
-            except KeyError:
-                output_file.write(w + '\t' + str(len(w.split(' '))) + '\t' + str(1) + '\n')
-                print(w)
-                c += 1
-        print('Unrecognized word : {} out of '.format(c) + str(len(s)))
-        output_file.close()
-        freq_file.close()
-        pairs_file.close()
+        #
+        categories = {
+            word_pho: (len(word_pho), rank(freq))
+            for _, word_pho, freq in freqs_csv
+        }
+        scores = {} # phonetic_form -> ngram scores (unigram, bigram, etc...)
+        with scores_csv.dict_reader as dict_reader:
+            for row in dict_reader:
+                phonetic = row.pop("phonetic")
+                scores[phonetic] = {score_name: float(score)
+                                    for score_name, score in row.item()}
 
+        previous_step_csv_path, previous_step_id = self.previous_step_filepath(workspace)
+        previous_step_csv = CandidatesPairCSV(previous_step_csv_path)
+        word_nonword = defaultdict(list)  # word -> list(nonwordss)
+        for _, word_pho, fake_word_pho in previous_step_csv:
+            word_nonword[word_pho].append(word_nonword)
 
-class NgramBalanceScoresTask(BaseTask):
-    pass
+        balancer = FakeWordsBalancer(words_scores=scores,
+                                     word_categories=categories,
+                                     word_nonword_pairs=word_nonword,
+                                     objective_fn=abs_sum_score_fn)
+
+        logger.info("Finding a balanced nonword candidate for each word")
+        for _, fake_word in tqdm(balancer.iter_balanced_pairs(), total=len(word_nonword)):
+            self.chosen_fake_words.add(fake_word)
+
+        output_filename = Path(f"step_{previous_step_id + 1}_ngrams.csv")
+        output_file_csv = CandidatesPairCSV(previous_step_csv_path.parent / output_filename)
+        self.filter(previous_step_csv, output_file_csv, self.filter_fn)

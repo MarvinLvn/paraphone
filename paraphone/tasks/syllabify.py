@@ -62,9 +62,9 @@ class SyllabifyTask(BaseTask):
         phonemized_words_csv = PhonemizedWordsCSV(phonemized_words_path)
 
         # building the stats dict for failed syllabification
-        self.stats = {err.__class__: 0 for err in [NoVowelError,
-                                                    NoOnsetError,
-                                                    UnknownSymbolError]}
+        self.stats = {err_type.__name__: 0 for err_type in [NoVowelError,
+                                                   NoOnsetError,
+                                                   UnknownSymbolError]}
 
         graphemic_forms, phonetic_forms = zip(*phonemized_words_csv)
         phonetic_forms = [" ".join(form) for form in phonetic_forms]
@@ -75,7 +75,7 @@ class SyllabifyTask(BaseTask):
                 syll_form = syllabifier.syllabify(pho_form, strip=True)
             except RuntimeError as err:
                 logger.debug(f"Couldn't syllabify {pho_form}: {err}")
-                self.stats[err.__class__] += 1
+                self.stats[err.__class__.__name__] += 1
                 syllabic_forms.append(None)
             else:
                 syllabic_forms.append(syll_form)
