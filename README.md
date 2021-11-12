@@ -35,7 +35,20 @@ paraphone workspaces/myworkspace import families /scratch1/projects/InfTrain/met
 # then, we'll need to setup the dictionaries (paraphone automatically knows
 # from the workspace's config that it's for french
 paraphone workspaces/myworkspace dict-setup
-# then, it's tokenization time: text files are cleaned, parsed, and unique words are collected
-# and stored in a csv file
+# then, it's tokenization time: text files are cleaned, parsed, and unique words that found a match in the dictionaries
+# are collected and stored in a csv file
 paraphone workspaces/myworkspace tokenize
+# Tokens are then phonemized to IPA, using the dictionaries (and phonemizer as a fallback), 
+# as well as the folding rules
+paraphone workspaces/myworkspace phonemize
+# We can now also syllabify (find the syllabic form) of each word, using the onsets
+# from either Lexique or Celex's syllabic forms (depending on Fr or En)
+paraphone workspaces/myworkspace syllabify
+# the syllabic forms are used by wuggy in its lexicon to generate
+# real word/ fake word pairs (10 of them for each real word in this case)
+paraphone workspaces/myworkspace wuggy --num_candidates 10
+# most of these pairs are trash. We'll need to filter them in some consecutive steps:
+# first, init the filtering "subpipeline"
+paraphone workspaces/myworkspace filter init
+# REST IS TODO
 ```

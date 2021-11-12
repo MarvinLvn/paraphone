@@ -5,3 +5,6 @@
 - DONE : eval ngrams over the corpora to check if they're similar or not among those
 - ask about the ranking of frequency (why not use an adaptative ranking) in balancing
 - use multiprocess.pool in wuggy gen
+- add cli endpoint in setup.py
+- add filtering reset command
+- add wuggy-per-corpus

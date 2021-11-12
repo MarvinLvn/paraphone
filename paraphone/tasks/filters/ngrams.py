@@ -116,13 +116,14 @@ class NgramBalanceScoresTask(BaseFilteringTask):
         "candidates_filtering/ngram/phonemized_words_frequencies.csv",
         "candidates_filtering/ngram/scores.csv",
     ]
+    step_name = "ngram"
 
     def __init__(self):
         super().__init__()
-        self.chosen_pairs: Set[Tuple[str, str]] = set()
+        self._chosen_pairs: Set[Tuple[str, str]] = set()
 
-    def filter_fn(self, word_pair: WordPair) -> bool:
-        return (word_pair.word_pho, word_pair.fake_word_pho) in self.chosen_pairs
+    def keep_pair(self, word_pair: WordPair) -> bool:
+        return (word_pair.word_pho, word_pair.fake_word_pho) in self._chosen_pairs
 
     def run(self, workspace: Workspace):
         ngram_data_folder = workspace.candidates_filtering / Path("ngram")
@@ -143,17 +144,17 @@ class NgramBalanceScoresTask(BaseFilteringTask):
 
         previous_step_csv_path, previous_step_id = self.previous_step_filepath(workspace)
         previous_step_csv = CandidatesPairCSV(previous_step_csv_path)
-        word_nonword = defaultdict(list)  # word -> list(nonwords)
+        word_nonwords = defaultdict(list)  # word -> list(nonwords)
         for _, word_pho, fake_word_pho in previous_step_csv:
-            word_nonword[word_pho].append(fake_word_pho)
+            word_nonwords[word_pho].append(fake_word_pho)
 
         balancer = FakeWordsBalancer(words_scores=scores,
                                      word_categories=categories,
-                                     word_nonword_pairs=word_nonword,
+                                     word_nonword_pairs=word_nonwords,
                                      objective_fn=abs_sum_score_fn)
 
         logger.info("Finding a balanced nonword candidate for each word")
-        for word, fake_word in tqdm(balancer.iter_balanced_pairs(), total=len(word_nonword)):
-            self.chosen_pairs.add((word, fake_word))
+        for word, fake_word in tqdm(balancer.iter_balanced_pairs(), total=len(word_nonwords)):
+            self._chosen_pairs.add((word, fake_word))
 
-        self.filter(workspace, self.filter_fn)
+        self.filter(workspace)

@@ -17,8 +17,8 @@ class G2PtoP2GTrainTask(BaseTask):
 
 
 class G2PWordsFilterTask(BaseFilteringTask):
-    pass
+    step_name = "seq2seq-words"
 
 
 class G2PtoP2GNonWordsFilterTask(BaseFilteringTask):
-    pass
+    step_name = "seq2seq-nonwords"

@@ -8,7 +8,8 @@ from ..tasks.base import BaseTask
 from ..tasks.corpora import CorporaCreationTask
 from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTask, CMUENSetupTask, CelexSetupTask, \
     PhonemizerSetupTask
-from ..tasks.filters.base import RandomFilterTask, InitFilteringTask, EqualsFilterTask
+from ..tasks.filters.base import RandomFilterTask, InitFilteringTask, EqualsFilterTask, RandomPairFilterTask, \
+    LevenshteinFilterTask
 from ..tasks.filters.ngrams import NgramScoringTask, NgramBalanceScoresTask
 from ..tasks.filters.seq2seq import G2PWordsFilterTask, G2PtoP2GNonWordsFilterTask
 from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleSpeakCredentials
@@ -303,6 +304,30 @@ class FilterRandomCommand(BaseCommand):
         return RandomFilterTask(args.ratio)
 
 
+class FilterRandomPairsCommand(BaseCommand):
+    COMMAND = "random-pairs"
+    DESCRIPTION = "Keep, for each real word, only one random word/nonword pair"
+
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return RandomPairFilterTask()
+
+
+class FilterLevenshteinCommand(BaseCommand):
+    COMMAND = "levenshtein"
+    DESCRIPTION = "Keep only pairs that have a phonetic levenshtein distance " \
+                  "lower than the set threshold"
+
+    @classmethod
+    def init_parser(cls, parser: ArgumentParser):
+        parser.add_argument("-th", "--threshold", default=2, type=int)
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return LevenshteinFilterTask(args.threshold)
+
+
 class FilterEqualsCommand(BaseCommand):
     COMMAND = "equals"
     DESCRIPTION = "Filter out pairs that have the same phonetic form"
@@ -343,7 +368,8 @@ class FilterCommand(CommandGroup):
     COMMAND = "filter"
     DESCRIPTION = "Filter out real words/fake words candidates pair using various methods"
     SUBCOMMANDS = [FilterNgramCommand, FilterP2GCommand, FilterP2GtoG2PCommand,
-                   FilterRandomCommand, FilterInitCommand, EqualsFilterTask]
+                   FilterRandomCommand, FilterInitCommand, EqualsFilterTask,
+                   RandomPairFilterTask, LevenshteinFilterTask]
 
 
 class CorporaNgramStats(BaseCommand):
