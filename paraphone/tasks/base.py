@@ -71,8 +71,11 @@ class BaseTask(metaclass=abc.ABCMeta):
 class CorporaTaskMixin:
     corpus_name_re = re.compile(r"corpus_([0-9]+)")
 
-    def iter_corpora(self, folder: Path) -> Iterable[Tuple[int, Path]]:
+    def find_corpora(self, folder: Path) -> List[Tuple[int, Path]]:
+        corpora = []
         for filepath in folder.iterdir():
             re_match = self.corpus_name_re.match(filepath.name)
             if re_match is not None:
-                yield int(re_match[1]), filepath
+                corpora.append((int(re_match[1]), filepath))
+
+        return sorted(corpora, key=lambda x: x[0])

@@ -1,12 +1,12 @@
 from collections import defaultdict
 from pathlib import Path
-from typing import Iterable, List, Tuple, Set
+from typing import Iterable, List, Tuple, Set, Optional
 
 from tqdm import tqdm
 
-from .base import BaseFilteringTask, CandidatesPairCSV, WordPair
+from .base import FilteringTaskMixin, CandidatesPairCSV, WordPair, CorpusFinalFilteringTask
 from ..syllabify import SyllabifiedWordsCSV
-from ..tokenize import TokenizedTextCSV
+from ..tokenize import TokenizedWordsCSV
 from ...ngrams_tools import NGramComputer, FakeWordsBalancer, abs_sum_score_fn, rank
 from ...utils import logger, Phoneme, consecutive_pairs
 from ...workspace import Workspace, WorkspaceCSV
@@ -39,7 +39,7 @@ class PhonemizedWordsFrequencyCSV(WorkspaceCSV):
                        int(row["frequency"]))
 
 
-class NgramScoringTask(BaseFilteringTask):
+class NgramScoringTask(FilteringTaskMixin):
     requires = [
         "datasets/tokenized/all.csv",  # used for word frequency (not normalized)
         "wuggy/candidates.csv",
@@ -60,7 +60,7 @@ class NgramScoringTask(BaseFilteringTask):
         syllabic_csv = SyllabifiedWordsCSV(workspace.phonemized / Path("syllabic.csv"))
         frequency_csv = PhonemizedWordsFrequencyCSV(ngram_data_folder
                                                     / Path("phonemized_words_frequencies.csv"))
-        tokenized_csv = TokenizedTextCSV(workspace.tokenized / Path("all.csv"))
+        tokenized_csv = TokenizedWordsCSV(workspace.tokenized / Path("all.csv"))
         words_freq = tokenized_csv.to_dict()
         with frequency_csv.dict_writer as freq_writer:
             freq_writer.writeheader()
@@ -108,7 +108,7 @@ class NgramScoringTask(BaseFilteringTask):
                     phonetic_forms.add(tuple(phonemes))
 
 
-class NgramBalanceScoresTask(BaseFilteringTask):
+class NgramBalanceScoresTask(CorpusFinalFilteringTask):
     """Use computed ngram scores to select only one fake word candidate per
     real word"""
 
@@ -118,14 +118,14 @@ class NgramBalanceScoresTask(BaseFilteringTask):
     ]
     step_name = "ngram"
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, for_corpus: Optional[int]):
+        super().__init__(for_corpus=for_corpus)
         self._chosen_pairs: Set[Tuple[str, str]] = set()
 
     def keep_pair(self, word_pair: WordPair) -> bool:
         return (word_pair.word_pho, word_pair.fake_word_pho) in self._chosen_pairs
 
-    def run(self, workspace: Workspace):
+    def run_for_corpus(self, workspace: Workspace, corpus_id: int):
         ngram_data_folder = workspace.candidates_filtering / Path("ngram")
         freqs_csv = PhonemizedWordsFrequencyCSV(ngram_data_folder / Path("phonemized_words_frequencies.csv"))
         scores_csv = NgramScoresCSV(ngram_data_folder / Path("scores.csv"))
@@ -142,10 +142,18 @@ class NgramBalanceScoresTask(BaseFilteringTask):
                 scores[phonetic] = {score_name: float(score)
                                     for score_name, score in row.items()}
 
+        # retrieving the tokenized word list of corpus to eliminate all words
+        # not contained in that corpus
+        tokenized_corpus_csv = self.get_tokenized_corpus(workspace, corpus_id)
+        corpus_words_pho: Set[str] = {word for word, _ in tokenized_corpus_csv}
+
         previous_step_csv_path, previous_step_id = self.previous_step_filepath(workspace)
         previous_step_csv = CandidatesPairCSV(previous_step_csv_path)
+        # only for words contained in the corpus
         word_nonwords = defaultdict(list)  # word -> list(nonwords)
-        for _, word_pho, fake_word_pho in previous_step_csv:
+        for word, word_pho, fake_word_pho in previous_step_csv:
+            if word not in corpus_words_pho:
+                continue
             word_nonwords[word_pho].append(fake_word_pho)
 
         balancer = FakeWordsBalancer(words_scores=scores,
@@ -157,4 +165,4 @@ class NgramBalanceScoresTask(BaseFilteringTask):
         for word, fake_word in tqdm(balancer.iter_balanced_pairs(), total=len(word_nonwords)):
             self._chosen_pairs.add((word, fake_word))
 
-        self.filter(workspace)
+        self.filter(workspace, corpus_id)

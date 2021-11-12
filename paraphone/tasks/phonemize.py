@@ -10,7 +10,7 @@ from phonemizer.separator import Separator
 
 from .base import BaseTask
 from .dictionaries import DictionaryCSV, FoldingCSV
-from .tokenize import TokenizedTextCSV
+from .tokenize import TokenizedWordsCSV
 from ..utils import count_lines, logger, Phoneme, null_logger
 from ..workspace import Workspace, WorkspaceCSV
 
@@ -132,7 +132,7 @@ class PhonemizeTask(BaseTask):
 
     def run(self, workspace: Workspace):
         workspace.phonemized.mkdir(parents=True, exist_ok=True)
-        tokenized_words_csv = TokenizedTextCSV(workspace.tokenized / Path("all.csv"))
+        tokenized_words_csv = TokenizedWordsCSV(workspace.tokenized / Path("all.csv"))
 
         # loading phonemizer instances
         phonemizers = self.load_phonemizers(workspace)

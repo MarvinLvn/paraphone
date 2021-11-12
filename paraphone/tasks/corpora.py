@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 from .base import BaseTask
 from .imports import FileID
-from .tokenize import TokenizedTextCSV
+from .tokenize import TokenizedWordsCSV
 from ..utils import logger
 from ..workspace import Workspace
 
@@ -25,7 +25,7 @@ class CorporaCreationTask(BaseTask):
 
     creates = [
         "corpora/",
-        "corpora/*.csv"
+        "corpora/tokenized/*.csv"
     ]
 
     def load_group_words(self, group: Set[FileID], workspace: Workspace) -> Counter:
@@ -33,7 +33,7 @@ class CorporaCreationTask(BaseTask):
 
         group_words = Counter()
         for file_id in group:
-            tokenized_file = TokenizedTextCSV(tokenized_folder / Path(f"{file_id}.csv"))
+            tokenized_file = TokenizedWordsCSV(tokenized_folder / Path(f"{file_id}.csv"))
             try:
                 group_words.update(tokenized_file.to_dict())
             except FileNotFoundError:
@@ -77,8 +77,10 @@ class CorporaCreationTask(BaseTask):
                             del family_words_dict[word]
 
             logger.debug(f"Writing words list for family {family_id}")
-            family_words_csv = TokenizedTextCSV(workspace.corpora /
-                                                Path(f"corpus_{family_id}.csv"))
+            tokenized_corpora_folder = workspace.corpora / Path("tokenized/")
+            tokenized_corpora_folder.mkdir(parents=True, exist_ok=True)
+            family_words_csv = TokenizedWordsCSV(tokenized_corpora_folder /
+                                                 Path(f"corpus_{family_id}.csv"))
             with family_words_csv.dict_writer as dict_writer:
                 dict_writer.writeheader()
                 for word, count in family_words_dict.items():

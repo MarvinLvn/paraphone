@@ -308,7 +308,6 @@ class FilterRandomPairsCommand(BaseCommand):
     COMMAND = "random-pairs"
     DESCRIPTION = "Keep, for each real word, only one random word/nonword pair"
 
-
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
         return RandomPairFilterTask()
@@ -342,8 +341,12 @@ class FilterNgramCommand(BaseCommand):
     DESCRIPTION = "Filter out fake words candidates using Ngrams statistics"
 
     @classmethod
+    def init_parser(cls, parser: ArgumentParser):
+        parser.add_argument("-c", "--corpus", type=int, help="Only run for a given corpus")
+
+    @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return [NgramScoringTask(), NgramBalanceScoresTask()]
+        return [NgramScoringTask(), NgramBalanceScoresTask(args.corpus)]
 
 
 class FilterP2GCommand(BaseCommand):
@@ -368,8 +371,8 @@ class FilterCommand(CommandGroup):
     COMMAND = "filter"
     DESCRIPTION = "Filter out real words/fake words candidates pair using various methods"
     SUBCOMMANDS = [FilterNgramCommand, FilterP2GCommand, FilterP2GtoG2PCommand,
-                   FilterRandomCommand, FilterInitCommand, EqualsFilterTask,
-                   RandomPairFilterTask, LevenshteinFilterTask]
+                   FilterRandomCommand, FilterInitCommand, FilterEqualsCommand,
+                   FilterRandomPairsCommand, FilterLevenshteinCommand]
 
 
 class CorporaNgramStats(BaseCommand):

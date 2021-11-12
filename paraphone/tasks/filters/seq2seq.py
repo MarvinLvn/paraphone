@@ -1,4 +1,4 @@
-from .base import BaseFilteringTask
+from .base import FilteringTaskMixin
 from ..base import BaseTask
 
 # TODO : file names for the filtering steps are named
@@ -16,9 +16,9 @@ class G2PtoP2GTrainTask(BaseTask):
     pass
 
 
-class G2PWordsFilterTask(BaseFilteringTask):
+class G2PWordsFilterTask(FilteringTaskMixin):
     step_name = "seq2seq-words"
 
 
-class G2PtoP2GNonWordsFilterTask(BaseFilteringTask):
+class G2PtoP2GNonWordsFilterTask(FilteringTaskMixin):
     step_name = "seq2seq-nonwords"

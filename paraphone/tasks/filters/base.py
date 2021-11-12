@@ -4,12 +4,13 @@ from collections import defaultdict
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
-from typing import Tuple, List, Iterable, Set
+from typing import Tuple, List, Iterable, Set, Optional
 
 import Levenshtein
 from tqdm import tqdm
 
-from ..base import BaseTask
+from ..base import BaseTask, CorporaTaskMixin
+from ..tokenize import TokenizedWordsCSV
 from ..wuggy_gen import FakeWordsCandidatesCSV
 from ...utils import logger
 from ...workspace import Workspace, WorkspaceCSV
@@ -34,7 +35,7 @@ class CandidatesPairCSV(WorkspaceCSV):
                 yield row["word"], row["word_pho"], row["fake_word_pho"]
 
 
-class BaseFilteringTask(BaseTask):
+class FilteringTaskMixin(BaseTask):
     step_re = re.compile("step_([0-9]+).*")
     step_name: str
 
@@ -78,7 +79,73 @@ class BaseFilteringTask(BaseTask):
                     })
 
 
-class InitFilteringTask(BaseFilteringTask):
+class CorpusFinalFilteringTask(FilteringTaskMixin, CorporaTaskMixin, BaseTask):
+    """Specific version of the `FilteringTaskMixin` made for the final
+    step of the pipeline, and that is corpus-specific."""
+
+    requires = [
+        "corpora/tokenized/*.csv"
+    ]
+
+    creates = [
+        "corpora/wuggy_pairs/*.csv"
+    ]
+
+    def __init__(self, for_corpus: Optional[int] = None):
+        super().__init__()
+        self.for_corpus = for_corpus
+
+    @classmethod
+    def get_tokenized_corpus(cls, workspace: Workspace, corpus_id: int) -> TokenizedWordsCSV:
+        csv_path =  workspace.corpora / Path(f"tokenized/corpus_{corpus_id}.csv")
+        return TokenizedWordsCSV(csv_path)
+
+    def filter(self, workspace: Workspace, corpus_id: int):  # noqa
+        """Filters out candidates based on the `keep_pair` function's output,
+        and only for the """
+
+        previous_step_path, previous_step_id = self.previous_step_filepath(workspace)
+        input_csv = CandidatesPairCSV(previous_step_path)
+        output_corpora_folder = workspace.corpora / Path("wuggy_pairs")
+        output_corpora_folder.mkdir(parents=True, exist_ok=True)
+        output_csv = CandidatesPairCSV(output_corpora_folder / Path(f"corpus_{corpus_id}.csv"))
+
+        # retrieving the tokenized word list of corpus to eliminate all words
+        # not contained in that corpus
+        tokenized_corpus_csv = self.get_tokenized_corpus(workspace, corpus_id)
+        corpus_words_pho: Set[str] = {word for word, _ in tokenized_corpus_csv}
+
+        logger.info(f"Filtering pairs (for corpus {corpus_id}), "
+                    f"from {input_csv.file_path} into {output_csv.file_path}")
+        pairs_count = input_csv.lines_count
+        kept_count = 0
+        with output_csv.dict_writer as dict_writer:
+            dict_writer.writeheader()
+            for word, word_pho, fake_word_pho in tqdm(input_csv, total=pairs_count):
+                if word not in corpus_words_pho:
+                    continue
+                word_pair = WordPair(word, word_pho, fake_word_pho)
+                if self.keep_pair(word_pair):
+                    kept_count += 1
+                    dict_writer.writerow({
+                        "word": word, "word_pho": word_pho, "fake_word_pho": fake_word_pho
+                    })
+
+    def run_for_corpus(self, workspace: Workspace, corpus_id: int):
+        raise NotImplemented()
+
+    def run(self, workspace: Workspace):
+        corpora = self.find_corpora(workspace.corpora / Path("tokenized/"))
+        if self.for_corpus is not None:
+            assert self.for_corpus in {corpus_id for corpus_id, _ in corpora}
+            corpora = [(self.for_corpus, None)]
+
+        for corpus_id, _, in corpora:
+            logger.info(f"Running {self.__class__.__name__} for corpus {corpus_id}.")
+            self.run_for_corpus(workspace, corpus_id)
+
+
+class InitFilteringTask(FilteringTaskMixin):
     requires = [
         "wuggy/candidates.csv",
     ]
@@ -107,7 +174,7 @@ class InitFilteringTask(BaseFilteringTask):
                 })
 
 
-class RandomFilterTask(BaseFilteringTask):
+class RandomFilterTask(FilteringTaskMixin):
     """Keeps a random split of the candidates determined by ratio."""
     step_name = "random"
 
@@ -124,7 +191,7 @@ class RandomFilterTask(BaseFilteringTask):
         self.filter(workspace)
 
 
-class RandomPairFilterTask(BaseFilteringTask):
+class RandomPairFilterTask(FilteringTaskMixin):
     """Keeps only one of the word/nonword pairs, at random"""
     step_name = "random-pairs"
 
@@ -149,7 +216,7 @@ class RandomPairFilterTask(BaseFilteringTask):
         self.filter(workspace)
 
 
-class EqualsFilterTask(BaseFilteringTask):
+class EqualsFilterTask(FilteringTaskMixin):
     """Filters out equal phonetic pairs"""
     step_name = "equals"
 
@@ -160,7 +227,7 @@ class EqualsFilterTask(BaseFilteringTask):
         self.filter(workspace)
 
 
-class LevenshteinFilterTask(BaseFilteringTask):
+class LevenshteinFilterTask(FilteringTaskMixin):
     """Keeps pairs whose edit distance is lower than a threshold"""
     step_name = "random"
 

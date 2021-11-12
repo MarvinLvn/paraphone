@@ -5,7 +5,7 @@ from typing import Iterable, Tuple
 from ..ngrams_tools import NGramComputer
 from .base import BaseTask, CorporaTaskMixin
 from .phonemize import PhonemizedWordsCSV
-from .tokenize import TokenizedTextCSV
+from .tokenize import TokenizedWordsCSV
 from ..utils import logger
 from ..workspace import Workspace, WorkspaceCSV
 
@@ -38,12 +38,12 @@ class CorporaNgramStatsTask(BaseTask, CorporaTaskMixin):
         corpora_ngrams_folder.mkdir(parents=True, exist_ok=True)
         phonemized_words_csv = PhonemizedWordsCSV(workspace.phonemized / Path("all.csv"))
         phonemized_words = phonemized_words_csv.to_dict()
-        for corpus_id, tokenized_corpus_path in self.iter_corpora(workspace.corpora):
+        for corpus_id, tokenized_corpus_path in self.find_corpora(workspace.corpora):
             logger.info(f"Statistics for corpus {corpus_id}")
 
             logger.info("Loading frequency for each phonetic form")
             corpus_phon_freqs = defaultdict(int)
-            for word, freq in TokenizedTextCSV(tokenized_corpus_path):
+            for word, freq in TokenizedWordsCSV(tokenized_corpus_path):
                 try:
                     corpus_phon_freqs[tuple(phonemized_words[word])] += freq
                 except KeyError as err:

@@ -9,7 +9,7 @@ from wuggy_ng import Generator
 
 from .base import BaseTask
 from .syllabify import SyllabifiedWordsCSV
-from .tokenize import TokenizedTextCSV
+from .tokenize import TokenizedWordsCSV
 from ..utils import logger, Phoneme, Syllable, parse_syllabic
 from ..workspace import WorkspaceCSV, Workspace
 from ..wuggy_plugins import phonetic_fr_ipa, phonetic_en_ipa
@@ -59,7 +59,7 @@ class WuggyPrepareTask(BaseTask):
     def run(self, workspace: Workspace):
         workspace.wuggy.mkdir(parents=True, exist_ok=True)
         logger.info("Computing total number of words in corpus")
-        all_tokens_csv = TokenizedTextCSV(workspace.tokenized / Path("all.csv"))
+        all_tokens_csv = TokenizedWordsCSV(workspace.tokenized / Path("all.csv"))
         all_words = all_tokens_csv.to_dict()
         total_words_count = sum(all_words.values())
         syllabic_csv = SyllabifiedWordsCSV(workspace.phonemized / Path("syllabic.csv"))

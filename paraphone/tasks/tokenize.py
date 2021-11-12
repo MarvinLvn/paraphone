@@ -13,7 +13,7 @@ from ..utils import count_lines, logger
 from ..workspace import Workspace, WorkspaceCSV
 
 
-class TokenizedTextCSV(WorkspaceCSV):
+class TokenizedWordsCSV(WorkspaceCSV):
     header = ["word", "count"]
 
     def __init__(self, file_path: Path):
@@ -63,9 +63,9 @@ class TokenizeTask(BaseTask):
 
     def tokenize_file(self, text_id: FileID,
                       file_path: Path,
-                      all_tokenized_csv: TokenizedTextCSV,
+                      all_tokenized_csv: TokenizedWordsCSV,
                       workspace: Workspace):
-        tokenization_csv = TokenizedTextCSV(
+        tokenization_csv = TokenizedWordsCSV(
             workspace.tokenized / Path(f"per_text/{text_id}.csv")
         )
         with open(file_path) as raw_text_file:
@@ -102,7 +102,7 @@ class TokenizeTask(BaseTask):
         workspace.tokenized.mkdir(parents=True, exist_ok=True)
         (workspace.tokenized / Path(f"per_text/")).mkdir(parents=True, exist_ok=True)
 
-        all_tokenized_words = TokenizedTextCSV(workspace.tokenized / Path("all.csv"))
+        all_tokenized_words = TokenizedWordsCSV(workspace.tokenized / Path("all.csv"))
         dataset_index = DatasetIndexCSV(workspace.datasets_index)
         self._dictionaries = self.load_dictionaries(workspace)
 
