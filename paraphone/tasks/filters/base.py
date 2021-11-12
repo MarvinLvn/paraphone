@@ -51,10 +51,15 @@ class BaseFilteringTask(BaseTask):
         return max(found_steps_files, key=lambda x: x[1])
 
     def filter(self,
-               input_csv: CandidatesPairCSV,
-               output_csv: CandidatesPairCSV,
+               workspace: Workspace,
                criterion_fn: Callable[[WordPair], bool]):
         """Filters out candidates based on the criterion_fn's output"""
+
+        previous_step_path, previous_step_id = self.previous_step_filepath(workspace)
+        input_csv = CandidatesPairCSV(previous_step_path)
+        output_csv = CandidatesPairCSV(previous_step_path.parent
+                                       / self.next_step_filename(previous_step_id))
+
         logger.info(f"Filtering pairs from {input_csv.file_path} into {output_csv.file_path}")
         with output_csv.dict_writer as dict_writer:
             dict_writer.writeheader()
@@ -109,9 +114,15 @@ class RandomFilterTask(BaseFilteringTask):
 
     def run(self, workspace: Workspace):
         random.seed(4577)
+        self.filter(workspace, self.filtering_fn)
 
-        previous_step_path, previous_step_id = self.previous_step_filepath(workspace)
-        previous_step_csv = CandidatesPairCSV(previous_step_path)
-        output_step_csv = CandidatesPairCSV(previous_step_path.parent
-                                            / self.next_step_filename(previous_step_id))
-        self.filter(previous_step_csv, output_step_csv, self.filtering_fn)
+
+class EqualsFilterTask(BaseFilteringTask):
+    """Keeps a random split of the candidates determined by ratio."""
+    step_name = "random"
+
+    def filtering_fn(self, word_pair: WordPair):
+        return word_pair.word_pho != word_pair.fake_word_pho
+
+    def run(self, workspace: Workspace):
+        self.filter(workspace, self.filtering_fn)

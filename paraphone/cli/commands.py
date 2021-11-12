@@ -8,7 +8,7 @@ from ..tasks.base import BaseTask
 from ..tasks.corpora import CorporaCreationTask
 from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTask, CMUENSetupTask, CelexSetupTask, \
     PhonemizerSetupTask
-from ..tasks.filters.base import RandomFilterTask, InitFilteringTask
+from ..tasks.filters.base import RandomFilterTask, InitFilteringTask, EqualsFilterTask
 from ..tasks.filters.ngrams import NgramScoringTask, NgramBalanceScoresTask
 from ..tasks.filters.seq2seq import G2PWordsFilterTask, G2PtoP2GNonWordsFilterTask
 from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleSpeakCredentials
@@ -303,6 +303,15 @@ class FilterRandomCommand(BaseCommand):
         return RandomFilterTask(args.ratio)
 
 
+class FilterEqualsCommand(BaseCommand):
+    COMMAND = "equals"
+    DESCRIPTION = "Filter out pairs that have the same phonetic form"
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return EqualsFilterTask()
+
+
 class FilterNgramCommand(BaseCommand):
     COMMAND = "ngram"
     DESCRIPTION = "Filter out fake words candidates using Ngrams statistics"
@@ -310,7 +319,6 @@ class FilterNgramCommand(BaseCommand):
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
         return [NgramScoringTask(), NgramBalanceScoresTask()]
-        #return [NgramBalanceScoresTask()]
 
 
 class FilterP2GCommand(BaseCommand):
@@ -335,7 +343,7 @@ class FilterCommand(CommandGroup):
     COMMAND = "filter"
     DESCRIPTION = "Filter out real words/fake words candidates pair using various methods"
     SUBCOMMANDS = [FilterNgramCommand, FilterP2GCommand, FilterP2GtoG2PCommand,
-                   FilterRandomCommand, FilterInitCommand]
+                   FilterRandomCommand, FilterInitCommand, EqualsFilterTask]
 
 
 class CorporaNgramStats(BaseCommand):

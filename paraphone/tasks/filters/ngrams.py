@@ -55,7 +55,7 @@ class NgramScoringTask(BaseFilteringTask):
         # TODO: comment this for E.D.
         ngram_data_folder = workspace.candidates_filtering / Path("ngram/")
         ngram_data_folder.mkdir(parents=True, exist_ok=True)
-        # firstly, generate the phonemized word -> frequency csv
+        # firstly, generate the {phonemized word -> frequency} csv
         # from the syllabic CSV (some useless words are filtered out)
         syllabic_csv = SyllabifiedWordsCSV(workspace.phonemized / Path("syllabic.csv"))
         frequency_csv = PhonemizedWordsFrequencyCSV(ngram_data_folder
@@ -96,13 +96,13 @@ class NgramScoringTask(BaseFilteringTask):
                     phonemes_bounded = ["_"] + phonemes + ["_"]
                     row = {"phonetic": " ".join(phonemes),
                            "unigram_unbounded": ngram_computer.to_ngram_logprob(
-                               phonemes_bounded, unigram_unbounded),
+                               phonemes, unigram_unbounded),
                            "unigram_bounded": ngram_computer.to_ngram_logprob(
-                               phonemes, unigram_bounded),
+                               phonemes_bounded, unigram_bounded),
                            "bigram_unbounded": ngram_computer.to_ngram_logprob(
-                               consecutive_pairs(phonemes_bounded), bigrams_unbounded),
+                               consecutive_pairs(phonemes), bigrams_unbounded),
                            "bigram_bounded": ngram_computer.to_ngram_logprob(
-                               consecutive_pairs(phonemes), bigrams_bounded)
+                               consecutive_pairs(phonemes_bounded), bigrams_bounded)
                            }
                     dict_writer.writerow(row)
                     phonetic_forms.add(tuple(phonemes))
@@ -119,10 +119,10 @@ class NgramBalanceScoresTask(BaseFilteringTask):
 
     def __init__(self):
         super().__init__()
-        self.chosen_fake_words: Set[str] = set()
+        self.chosen_pairs: Set[Tuple[str, str]] = set()
 
     def filter_fn(self, word_pair: WordPair) -> bool:
-        return word_pair in self.chosen_fake_words
+        return (word_pair.word_pho, word_pair.fake_word_pho) in self.chosen_pairs
 
     def run(self, workspace: Workspace):
         ngram_data_folder = workspace.candidates_filtering / Path("ngram")
@@ -143,9 +143,9 @@ class NgramBalanceScoresTask(BaseFilteringTask):
 
         previous_step_csv_path, previous_step_id = self.previous_step_filepath(workspace)
         previous_step_csv = CandidatesPairCSV(previous_step_csv_path)
-        word_nonword = defaultdict(list)  # word -> list(nonwordss)
+        word_nonword = defaultdict(list)  # word -> list(nonwords)
         for _, word_pho, fake_word_pho in previous_step_csv:
-            word_nonword[word_pho].append(word_nonword)
+            word_nonword[word_pho].append(fake_word_pho)
 
         balancer = FakeWordsBalancer(words_scores=scores,
                                      word_categories=categories,
@@ -153,9 +153,7 @@ class NgramBalanceScoresTask(BaseFilteringTask):
                                      objective_fn=abs_sum_score_fn)
 
         logger.info("Finding a balanced nonword candidate for each word")
-        for _, fake_word in tqdm(balancer.iter_balanced_pairs(), total=len(word_nonword)):
-            self.chosen_fake_words.add(fake_word)
+        for word, fake_word in tqdm(balancer.iter_balanced_pairs(), total=len(word_nonword)):
+            self.chosen_pairs.add((word, fake_word))
 
-        output_filename = Path(f"step_{previous_step_id + 1}_ngrams.csv")
-        output_file_csv = CandidatesPairCSV(previous_step_csv_path.parent / output_filename)
-        self.filter(previous_step_csv, output_file_csv, self.filter_fn)
+        self.filter(workspace, self.filter_fn)

@@ -93,7 +93,7 @@ class ScoringStatistics:
         # number of words that have been chosen
         self.current_words_counter = 1
         # for each score, the sum of balancing scores
-        self.aggregate_scores = {score: 0 for score in scores_names}
+        self.aggregate_scores = {score: 0.0 for score in scores_names}
 
     @property
     def current_scores(self):
