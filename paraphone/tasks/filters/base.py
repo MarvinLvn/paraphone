@@ -1,3 +1,4 @@
+import random
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +33,11 @@ class CandidatesPairCSV(WorkspaceCSV):
 
 class BaseFilteringTask(BaseTask):
     step_re = re.compile("step_([0-9]+).*")
+    step_name: str
+
+    @classmethod
+    def next_step_filename(cls, previous_step_id: int) -> Path:
+        return Path(f"step_{previous_step_id + 1}_{cls.step_name}.csv")
 
     def previous_step_filepath(self, workspace: Workspace) -> Tuple[Path, int]:
         """Finds the last output from the previous step in the filtering
@@ -56,7 +62,7 @@ class BaseFilteringTask(BaseTask):
                 word_pair = WordPair(word, word_pho, fake_word_pho)
                 if criterion_fn(word_pair):
                     dict_writer.writerow({
-                        "word": word, "word_pho": word, "fake_word_pho": fake_word_pho
+                        "word": word, "word_pho": word_pho, "fake_word_pho": fake_word_pho
                     })
 
 
@@ -80,10 +86,32 @@ class InitFilteringTask(BaseFilteringTask):
         logger.info(f"Initializing filtering pipeline with {wuggy_candidates_csv.file_path}")
         with step_init_csv.dict_writer as dict_writer:
             dict_writer.writeheader()
-            for word, word_pho, _, fake_word_pho, _ in wuggy_candidates_csv:
+            for word, word_pho, _, fake_word_pho, _ in tqdm(wuggy_candidates_csv,
+                                                            total=wuggy_candidates_csv.lines_count):
                 dict_writer.writerow({
                     "word": word,
-                    "word_pho": word_pho,
-                    "fake_word_pho": fake_word_pho
+                    "word_pho": " ".join(word_pho),
+                    "fake_word_pho": " ".join(fake_word_pho)
                 })
 
+
+class RandomFilterTask(BaseFilteringTask):
+    """Keeps a random split of the candidates determined by ratio."""
+    step_name = "random"
+
+    def __init__(self, ratio: float):
+        super().__init__()
+        assert 0 < ratio < 1.0
+        self.ratio = ratio
+
+    def filtering_fn(self, word_pair: WordPair):
+        return random.random() < self.ratio
+
+    def run(self, workspace: Workspace):
+        random.seed(4577)
+
+        previous_step_path, previous_step_id = self.previous_step_filepath(workspace)
+        previous_step_csv = CandidatesPairCSV(previous_step_path)
+        output_step_csv = CandidatesPairCSV(previous_step_path.parent
+                                            / self.next_step_filename(previous_step_id))
+        self.filter(previous_step_csv, output_step_csv, self.filtering_fn)

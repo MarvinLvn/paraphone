@@ -8,6 +8,9 @@ from ..tasks.base import BaseTask
 from ..tasks.corpora import CorporaCreationTask
 from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTask, CMUENSetupTask, CelexSetupTask, \
     PhonemizerSetupTask
+from ..tasks.filters.base import RandomFilterTask, InitFilteringTask
+from ..tasks.filters.ngrams import NgramScoringTask, NgramBalanceScoresTask
+from ..tasks.filters.seq2seq import G2PWordsFilterTask, G2PtoP2GNonWordsFilterTask
 from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleSpeakCredentials
 from ..tasks.phonemize import PhonemizeFrenchTask, PhonemizeEnglishTask
 from ..tasks.stats import CorporaNgramStatsTask
@@ -278,25 +281,61 @@ class WuggyCommand(BaseCommand):
         return tasks
 
 
+class FilterInitCommand(BaseCommand):
+    COMMAND = "init"
+    DESCRIPTION = "Initialize filtering"
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return InitFilteringTask()
+
+
+class FilterRandomCommand(BaseCommand):
+    COMMAND = "random"
+    DESCRIPTION = "Filter out a random part of the candidates"
+
+    @classmethod
+    def init_parser(cls, parser: ArgumentParser):
+        parser.add_argument("-r", "--ratio", default=0.2, type=float)
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return RandomFilterTask(args.ratio)
+
+
 class FilterNgramCommand(BaseCommand):
     COMMAND = "ngram"
     DESCRIPTION = "Filter out fake words candidates using Ngrams statistics"
 
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return [NgramScoringTask(), NgramBalanceScoresTask()]
+        #return [NgramBalanceScoresTask()]
+
 
 class FilterP2GCommand(BaseCommand):
-    COMMAND = "words"
+    COMMAND = "seq2seq-words"
     DESCRIPTION = "Filter out real words using ses2seq"
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return G2PWordsFilterTask()
 
 
 class FilterP2GtoG2PCommand(BaseCommand):
-    COMMAND = "fake-words"
+    COMMAND = "seq2seq-fake-words"
     DESCRIPTION = "Filter out fake words using ses2seq"
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return G2PtoP2GNonWordsFilterTask()
 
 
 class FilterCommand(CommandGroup):
     COMMAND = "filter"
     DESCRIPTION = "Filter out real words/fake words candidates pair using various methods"
-    SUBCOMMANDS = [FilterNgramCommand, FilterP2GCommand, FilterP2GtoG2PCommand]
+    SUBCOMMANDS = [FilterNgramCommand, FilterP2GCommand, FilterP2GtoG2PCommand,
+                   FilterRandomCommand, FilterInitCommand]
 
 
 class CorporaNgramStats(BaseCommand):

@@ -7,8 +7,8 @@ from tqdm import tqdm
 from .base import BaseFilteringTask, CandidatesPairCSV, WordPair
 from ..syllabify import SyllabifiedWordsCSV
 from ..tokenize import TokenizedTextCSV
-from ...ngram_tools.ngrams import NGramComputer, FakeWordsBalancer, abs_sum_score_fn, rank
-from ...utils import logger, Phoneme, consecutive_pairs, count_lines
+from ...ngrams_tools import NGramComputer, FakeWordsBalancer, abs_sum_score_fn, rank
+from ...utils import logger, Phoneme, consecutive_pairs
 from ...workspace import Workspace, WorkspaceCSV
 
 # TODO : file names for the filtering steps are named
@@ -53,12 +53,13 @@ class NgramScoringTask(BaseFilteringTask):
 
     def run(self, workspace: Workspace):
         # TODO: comment this for E.D.
-
+        ngram_data_folder = workspace.candidates_filtering / Path("ngram/")
+        ngram_data_folder.mkdir(parents=True, exist_ok=True)
         # firstly, generate the phonemized word -> frequency csv
         # from the syllabic CSV (some useless words are filtered out)
-        syllabic_csv = SyllabifiedWordsCSV(workspace.phonemized / Path("all.csv"))
-        frequency_csv = PhonemizedWordsFrequencyCSV(workspace.candidates_filtering
-                                                    / Path("ngram/phonemized_words_frequencies.csv"))
+        syllabic_csv = SyllabifiedWordsCSV(workspace.phonemized / Path("syllabic.csv"))
+        frequency_csv = PhonemizedWordsFrequencyCSV(ngram_data_folder
+                                                    / Path("phonemized_words_frequencies.csv"))
         tokenized_csv = TokenizedTextCSV(workspace.tokenized / Path("all.csv"))
         words_freq = tokenized_csv.to_dict()
         with frequency_csv.dict_writer as freq_writer:
@@ -81,18 +82,19 @@ class NgramScoringTask(BaseFilteringTask):
         logger.info("Computing ngram scores over the wuggy real words/fake words pairs")
         last_step_path, last_step_id = self.previous_step_filepath(workspace)
         candidates_csv = CandidatesPairCSV(last_step_path)
-        ngrams_scores_csv = CandidatesPairCSV(workspace.candidates_filtering / Path("ngrams/scores.csv"))
-        candidates_count = count_lines(last_step_path)
+        ngrams_scores_csv = NgramScoresCSV(ngram_data_folder / Path("scores.csv"))
         phonetic_forms: Set[Tuple[str]] = set()
         with ngrams_scores_csv.dict_writer as dict_writer:
             dict_writer.writeheader()
-            for _, phonetic, fake_phonetic in tqdm(candidates_csv, total=candidates_count):
-                for phonemes in (phonetic, fake_phonetic):
+            for _, word_pho, fake_word_pho in tqdm(candidates_csv,
+                                                   total=candidates_csv.lines_count):
+                for phonemes in (word_pho, fake_word_pho):
+                    phonemes = phonemes.split(" ")
                     if tuple(phonemes) in phonetic_forms:
                         continue
 
                     phonemes_bounded = ["_"] + phonemes + ["_"]
-                    row = {"phonetic": phonemes,
+                    row = {"phonetic": " ".join(phonemes),
                            "unigram_unbounded": ngram_computer.to_ngram_logprob(
                                phonemes_bounded, unigram_unbounded),
                            "unigram_bounded": ngram_computer.to_ngram_logprob(
@@ -103,6 +105,7 @@ class NgramScoringTask(BaseFilteringTask):
                                consecutive_pairs(phonemes), bigrams_bounded)
                            }
                     dict_writer.writerow(row)
+                    phonetic_forms.add(tuple(phonemes))
 
 
 class NgramBalanceScoresTask(BaseFilteringTask):
@@ -128,15 +131,15 @@ class NgramBalanceScoresTask(BaseFilteringTask):
 
         #
         categories = {
-            word_pho: (len(word_pho), rank(freq))
+            " ".join(word_pho): (len(word_pho), rank(freq))
             for _, word_pho, freq in freqs_csv
         }
-        scores = {} # phonetic_form -> ngram scores (unigram, bigram, etc...)
+        scores = {}  # phonetic_form -> ngram scores (unigram, bigram, etc...)
         with scores_csv.dict_reader as dict_reader:
             for row in dict_reader:
                 phonetic = row.pop("phonetic")
                 scores[phonetic] = {score_name: float(score)
-                                    for score_name, score in row.item()}
+                                    for score_name, score in row.items()}
 
         previous_step_csv_path, previous_step_id = self.previous_step_filepath(workspace)
         previous_step_csv = CandidatesPairCSV(previous_step_csv_path)

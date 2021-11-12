@@ -2,12 +2,12 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Iterable, Tuple
 
-from paraphone.ngram_tools.ngrams import NGramComputer
-from paraphone.tasks.base import BaseTask, CorporaTaskMixin
-from paraphone.tasks.phonemize import PhonemizedWordsCSV
-from paraphone.tasks.tokenize import TokenizedTextCSV
-from paraphone.utils import logger
-from paraphone.workspace import Workspace, WorkspaceCSV
+from ..ngrams_tools import NGramComputer
+from .base import BaseTask, CorporaTaskMixin
+from .phonemize import PhonemizedWordsCSV
+from .tokenize import TokenizedTextCSV
+from ..utils import logger
+from ..workspace import Workspace, WorkspaceCSV
 
 
 class NgramsProbCSV(WorkspaceCSV):

@@ -4,7 +4,7 @@ from typing import Dict, Tuple, List, Union, Iterable, Literal, Callable, Option
 
 import numpy as np
 
-from ..utils import consecutive_pairs, Phoneme
+from .utils import consecutive_pairs, Phoneme
 
 Ngram = Union[str, Tuple[str, str]]
 
@@ -57,9 +57,11 @@ class NGramComputer:
 
     @classmethod
     def to_ngram_logprob(cls, ngrams: List[Ngram],
-                         ngrams_freqs: Dict[Ngram, int]):
-        ngrams_freqs = defaultdict(int, ngrams_freqs)
-        ngram_values = np.array(ngrams_freqs[ngram] for ngram in ngrams)
+                         ngrams_probabilities: Dict[Ngram, int]):
+        """Computes the log of the product of ngram probabilities, via a sum of logs"""
+        # nonexistent values are 0.0, via the default dict
+        ngrams_probabilities = defaultdict(float, ngrams_probabilities)
+        ngram_values = np.array([ngrams_probabilities[ngram] for ngram in ngrams])
         return np.sum(np.log(ngram_values))
 
 
@@ -67,7 +69,7 @@ Score = float
 
 
 def abs_sum_score_fn(scores: Iterable[Score]) -> float:
-    return np.abs(np.array(scores) - 0.5).sum()
+    return np.abs(np.array(list(scores)) - 0.5).sum()
 
 
 FREQS_RANKS = [0, 10, 20, 50, 100]  # TODO: ask about that
@@ -89,7 +91,7 @@ class ScoringStatistics:
 
     def __init__(self, scores_names: List[str]):
         # number of words that have been chosen
-        self.current_words_counter = 0
+        self.current_words_counter = 1
         # for each score, the sum of balancing scores
         self.aggregate_scores = {score: 0 for score in scores_names}
 
@@ -154,6 +156,8 @@ class FakeWordsBalancer:
         current_objective = self.objective_fn(scores_stats.current_scores.values())
 
         fake_word_candidate_scores = dict()
+        # for each fake word, computing its scores compared to the current
+        # statistics
         for fake_word in self.word_nonword_pairs[real_word]:
             candidate_scores = scores_stats.compute_candidate_scores(
                 self.words_scores[real_word],

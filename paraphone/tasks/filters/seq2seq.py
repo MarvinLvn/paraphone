@@ -1,3 +1,4 @@
+from .base import BaseFilteringTask
 from ..base import BaseTask
 
 # TODO : file names for the filtering steps are named
@@ -15,9 +16,9 @@ class G2PtoP2GTrainTask(BaseTask):
     pass
 
 
-class G2PWordsFilterTask(BaseTask):
+class G2PWordsFilterTask(BaseFilteringTask):
     pass
 
 
-class G2PtoP2GNonWordsFilterTask(BaseTask):
+class G2PtoP2GNonWordsFilterTask(BaseFilteringTask):
     pass
