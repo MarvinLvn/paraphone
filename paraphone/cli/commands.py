@@ -8,7 +8,7 @@ from ..tasks.base import BaseTask
 from ..tasks.corpora import CorporaCreationTask
 from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTask, CMUENSetupTask, CelexSetupTask, \
     PhonemizerSetupTask
-from ..tasks.filters.base import RandomFilterTask, InitFilteringTask, EqualsFilterTask, RandomPairFilterTask, \
+from ..tasks.filters.simple import InitFilteringTask, RandomFilterTask, RandomPairFilterTask, EqualsFilterTask, \
     LevenshteinFilterTask
 from ..tasks.filters.ngrams import NgramScoringTask, NgramBalanceScoresTask
 from ..tasks.filters.seq2seq import G2PWordsFilterTask, G2PtoP2GNonWordsFilterTask
