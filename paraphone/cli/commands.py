@@ -9,9 +9,9 @@ from ..tasks.corpora import CorporaCreationTask
 from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTask, CMUENSetupTask, CelexSetupTask, \
     PhonemizerSetupTask
 from ..tasks.filters.simple import InitFilteringTask, RandomFilterTask, RandomPairFilterTask, EqualsFilterTask, \
-    LevenshteinFilterTask
+    LevenshteinFilterTask, MostFrequentHomophoneFilterTask
 from ..tasks.filters.ngrams import NgramScoringTask, NgramBalanceScoresTask
-from ..tasks.filters.seq2seq import G2PWordsFilterTask, G2PtoP2GNonWordsFilterTask
+from ..tasks.filters.seq2seq import P2GWordsFilterTask, G2PtoP2GNonWordsFilterTask
 from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleSpeakCredentials
 from ..tasks.phonemize import PhonemizeFrenchTask, PhonemizeEnglishTask
 from ..tasks.stats import CorporaNgramStatsTask
@@ -336,6 +336,15 @@ class FilterEqualsCommand(BaseCommand):
         return EqualsFilterTask()
 
 
+class FilterHomophonesCommand(BaseCommand):
+    COMMAND = "homophones"
+    DESCRIPTION = "Filter out homophones based on frequency"
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return MostFrequentHomophoneFilterTask()
+
+
 class FilterNgramCommand(BaseCommand):
     COMMAND = "ngram"
     DESCRIPTION = "Filter out fake words candidates using Ngrams statistics"
@@ -372,7 +381,8 @@ class FilterCommand(CommandGroup):
     DESCRIPTION = "Filter out real words/fake words candidates pair using various methods"
     SUBCOMMANDS = [FilterNgramCommand, FilterP2GCommand, FilterP2GtoG2PCommand,
                    FilterRandomCommand, FilterInitCommand, FilterEqualsCommand,
-                   FilterRandomPairsCommand, FilterLevenshteinCommand]
+                   FilterRandomPairsCommand, FilterLevenshteinCommand,
+                   FilterHomophonesCommand]
 
 
 class CorporaNgramStats(BaseCommand):

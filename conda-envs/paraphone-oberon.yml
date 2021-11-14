@@ -1,0 +1,17 @@
+name: paraphone-habilis
+dependencies:
+  - python=3.8
+  - pip
+  - pip:
+    - tensorflow
+    - tensorflow-gpu
+    - pandas
+    - google-cloud-texttospeech
+    - PyYAML
+    - sortedcontainers
+    - phonemizer
+    - Levenshtein
+    - git+ssh://git@github.com/cmusphinx/g2p-seq2seq.git#egg=g2p_seq2seq
+    - git+ssh://git@gitlab.cognitive-ml.fr:1022/htiteux/wuggy-ng.git#egg=wuggy_ng
+
+

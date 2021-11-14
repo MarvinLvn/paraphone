@@ -1,0 +1,23 @@
+name: paraphone-habilis
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.6
+  - cudatoolkit=9.0
+  - cudnn=7.6.0
+  - pip
+  - pip:
+    - tensorflow==1.9.0
+    - tensorflow-gpu==1.9.0
+    - pandas
+    - google-cloud-texttospeech
+    - PyYAML
+    - sortedcontainers
+    - phonemizer
+    - Levenshtein
+    - typing-extensions
+    - git+ssh://git@github.com/cmusphinx/g2p-seq2seq.git#egg=g2p_seq2seq
+    - git+ssh://git@gitlab.cognitive-ml.fr:1022/htiteux/wuggy-ng.git#egg=wuggy_ng
+
+

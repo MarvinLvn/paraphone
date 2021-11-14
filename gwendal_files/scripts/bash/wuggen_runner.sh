@@ -32,8 +32,8 @@ python2.7 src/main/python/generation_candidates_ipa_fr.py ../wuggydict/words.txt
 
 ##FILTERS
 ## g2p-gpu-env on habilis
-#g2p-seq2seq --decode ../wuggydict/test.g2p --model_dir ../models/g2p --output ../wuggydict/results.g2p
-##train g2p p2g##train g2p p2g 5 epoch goog rapport
+##train g2p p2g#
+# train g2p p2g 5 epoch goog rapport
 CUDA_VISIBLE_DEVICES=1 g2p-seq2seq --train ../g2p-models/trainsets/train.g2p --model_dir ../g2p-models/g2p   --max_epochs 1 --reinit
 CUDA_VISIBLE_DEVICES=0 g2p-seq2seq --train ../g2p-models/trainsets/train.p2g --model_dir ../g2p-models/p2g/  --p2g --max_epochs 1 --reinit
  
@@ -46,11 +46,11 @@ g2p-seq2seq --decode ../wuggydict/test.word --model_dir ../g2p-models/p2g --outp
 # filter bad graphemized
 python3 src/main/python/g2p2g_tests.py res-word
 # filter bad syllabified and format for p2g on nonwords
-python3 src/main/python/g2p2g_tests.py test-p2g # > ../wuggydict/test.p2g
+python3 src/main/python/g2p2g_tests.py test-p2g
 
-# predcit graphem
+# predict graphem
 g2p-seq2seq --decode ../wuggydict/test.p2g --model_dir ../g2p-models/p2g --output ../wuggydict/results.p2g --p2g
-#foramt for g2p
+#format for g2p
 python3 src/main/python/g2p2g_tests.py test-g2p > ../wuggydict/test.g2p
 
 #predict phoneme

@@ -6,3 +6,4 @@ phonemizer
 git+ssh://git@gitlab.cognitive-ml.fr:1022/htiteux/wuggy-ng.git#egg=wuggy_ng
 git+ssh://git@github.com/cmusphinx/g2p-seq2seq.git#egg=g2p_seq2seq
 Levenshtein
+typing-extensions

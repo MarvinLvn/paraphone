@@ -49,6 +49,10 @@ class FilteringTaskMixin(BaseTask):
                 found_steps_files.append((filepath, int(re_match[1])))
         return max(found_steps_files, key=lambda x: x[1])
 
+    def previous_step_csv(self, workspace: Workspace) -> CandidatesPairCSV:
+        filepath, _ = self.previous_step_filepath(workspace)
+        return CandidatesPairCSV(filepath)
+
     def keep_pair(self, word_pair: WordPair) -> bool:
         raise NotImplemented()
 

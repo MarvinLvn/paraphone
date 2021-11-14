@@ -7,7 +7,8 @@ from os import symlink
 from os.path import relpath
 from pathlib import Path
 from shutil import copytree, copyfile
-from typing import Literal, Dict, Type, Tuple, Iterable, Text, Set
+from typing import Dict, Type, Tuple, Iterable, Text, Set
+from typing_extensions import Literal
 
 from sortedcontainers import SortedDict
 

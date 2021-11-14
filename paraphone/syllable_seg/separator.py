@@ -4,7 +4,7 @@
 
 import itertools
 import re
-from typing import Literal
+from typing_extensions import Literal
 
 
 class Separator:

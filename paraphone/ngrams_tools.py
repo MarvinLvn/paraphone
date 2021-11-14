@@ -1,6 +1,7 @@
 import random
 from collections import Counter, defaultdict
-from typing import Dict, Tuple, List, Union, Iterable, Literal, Callable, Optional, Any
+from typing import Dict, Tuple, List, Union, Iterable, Callable, Optional, Any
+from typing_extensions import Literal
 
 import numpy as np
 

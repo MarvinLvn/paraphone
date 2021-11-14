@@ -50,5 +50,18 @@ paraphone workspaces/myworkspace wuggy --num_candidates 10
 # most of these pairs are trash. We'll need to filter them in some consecutive steps:
 # first, init the filtering "subpipeline"
 paraphone workspaces/myworkspace filter init
-# REST IS TODO
+# removing pairs where the phonetic form of the real word == phonetic form of fake word
+paraphone workspaces/myworkspace filter equal-pairs
+# filtering out pairs that have a phonetic levenshtein edit distance > 2
+paraphone workspaces/myworkspace filter levenshtein --threshold 2 # optional filtering step
+# These steps are to train and then filter words based on seq2seq
+# TODO
+
+# Last filter: it computes ngram scores using the full dataset as a basis,
+# then, for each corpus, balances its candidate pairs using Tu Anh's algorithm
+paraphone workspaces/myworkspace filter ngram # optional
+
+
+
+
 ```

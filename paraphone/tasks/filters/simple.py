@@ -2,12 +2,13 @@ import random
 from collections import defaultdict
 from itertools import chain
 from pathlib import Path
-from typing import Set, Tuple, List
+from typing import Set, Tuple, List, Dict
 
 import Levenshtein
 from tqdm import tqdm
 
 from paraphone.tasks.filters.base import FilteringTaskMixin, CandidatesPairCSV, WordPair, CorpusFinalFilteringTask
+from paraphone.tasks.tokenize import TokenizedWordsCSV
 from paraphone.tasks.wuggy_gen import FakeWordsCandidatesCSV
 from paraphone.utils import logger
 from paraphone.workspace import Workspace
@@ -80,8 +81,8 @@ class RandomPairFilterTask(FilteringTaskMixin):
 
     def run(self, workspace: Workspace):
         random.seed(4577)
-        previous_step_csv_path, previous_step_id = self.previous_step_filepath(workspace)
-        previous_step_csv = CandidatesPairCSV(previous_step_csv_path)
+
+        previous_step_csv = self.previous_step_csv(workspace)
         word_nonword = defaultdict(list)  # word -> list(nonwords)
         for _, word_pho, fake_word_pho in tqdm(previous_step_csv):
             word_nonword[word_pho].append(fake_word_pho)
@@ -101,6 +102,42 @@ class EqualsFilterTask(FilteringTaskMixin):
 
     def run(self, workspace: Workspace):
         self.filter(workspace)
+
+
+class MostFrequentHomophoneFilterTask(FilteringTaskMixin):
+    """Filter homophones based on grapheme frequency (the grapheme with
+    the largest frequency is the one that "wins" and other graphemic forms
+    are filtered out) """
+    requires = [
+        "datasets/tokenized/all.csv"
+    ]
+    step_name = "homophones"
+
+    def __init__(self):
+        super().__init__()
+        # phonetic forms and the frequency of the word that is associated with it
+        # for two words with the same word_pho (homophones), only the one
+        # with the most frequent occurences is kept
+        self.word_pho_freq: Dict[str, int] = defaultdict(int)
+        # word_pho -> word
+        self.kept_word_pho: Dict[str, str] = dict()
+        self.kept_words: Set[str] = set()
+
+    def keep_pair(self, word_pair: WordPair) -> bool:
+        return word_pair.word in self.kept_words
+
+    def run(self, workspace: Workspace):
+        tokenized_words_csv = TokenizedWordsCSV(
+            workspace.tokenized / Path("all.csv")
+        )
+        tokenized_words = tokenized_words_csv.to_dict()
+        previous_step_csv = self.previous_step_csv(workspace)
+        for word, word_pho, _ in previous_step_csv:
+            if self.word_pho_freq[word_pho] < tokenized_words[word]:
+                self.word_pho_freq[word_pho] = tokenized_words[word]
+                self.kept_word_pho[word_pho] = word
+
+        self.kept_words = set(self.kept_word_pho.values())
 
 
 class LevenshteinFilterTask(FilteringTaskMixin):
