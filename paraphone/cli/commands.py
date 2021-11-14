@@ -364,7 +364,7 @@ class FilterP2GCommand(BaseCommand):
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return G2PWordsFilterTask()
+        return P2GWordsFilterTask()
 
 
 class FilterP2GtoG2PCommand(BaseCommand):

@@ -1,8 +1,12 @@
+
 import csv
 from contextlib import contextmanager
 from csv import DictReader, DictWriter
 from dataclasses import dataclass
-from functools import cached_property
+try:
+    from functools import cached_property
+except ImportError:
+    from cached_property import cached_property
 from pathlib import Path
 from typing import Tuple, List, Iterable, Optional, Dict, ContextManager
 
