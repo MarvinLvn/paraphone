@@ -47,7 +47,6 @@ class TokenizeTask(BaseTask):
         "datasets/tokenized/per_text/*.csv"
     ]
 
-    non_letters_re: re.Pattern
     _dictionaries: List[Set[str]]
     dict_names: List[str]
 

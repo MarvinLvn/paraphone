@@ -1,5 +1,4 @@
 import logging
-import shlex
 from pathlib import Path
 from typing import Iterable, Tuple, Dict, Set
 
@@ -76,7 +75,7 @@ class Seq2SeqFilterTask(FilteringTaskMixin, Seq2SeqMixin):
             "--p2g"
         ]
         logger.info(f"Using model in folder {p2g_model_dir}")
-        logger.debug(f"Decoding args : {shlex.join(decoding_args)}")
+        logger.debug(f"Decoding args : {' '.join(decoding_args)}")
         tf_app.run(main=seq2seq_main, argv=decoding_args)
 
     @classmethod
@@ -88,7 +87,7 @@ class Seq2SeqFilterTask(FilteringTaskMixin, Seq2SeqMixin):
             "--output", str(output_file),
         ]
         logger.info(f"Using model in folder {g2p_model_dir}")
-        logger.debug(f"Decoding args : {shlex.join(decoding_args)}")
+        logger.debug(f"Decoding args : {' '.join(decoding_args)}")
         tf_app.run(main=seq2seq_main, argv=decoding_args)
 
 
@@ -109,6 +108,7 @@ class P2GWordsFilterTask(Seq2SeqFilterTask):
 
     def run(self, workspace: Workspace):
         model_workbench = workspace.candidates_filtering / Path("seq2seq/p2g_files/")
+        model_workbench.mkdir(parents=True, exist_ok=True)
 
         logger.info("Preparing data for P2G decoding...")
         previous_step_csv = self.previous_step_csv(workspace)
