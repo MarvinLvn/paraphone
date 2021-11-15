@@ -2,16 +2,17 @@ import logging
 import shlex
 from pathlib import Path
 from typing import Iterable, Tuple, Dict, Set
-
-from g2p_seq2seq.app import main as seq2seq_main
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 from ...utils import logger
 from ...workspace import Workspace
 
 try:
     import tensorflow.app as tf_app
+    from g2p_seq2seq.app import main as seq2seq_main
 except ImportError:
-    import tensorflow.compat.v1.app as tf_app
+    pass
 
 from .base import FilteringTaskMixin, WordPair
 from ..base import BaseTask

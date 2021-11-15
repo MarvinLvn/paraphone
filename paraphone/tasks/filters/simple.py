@@ -1,4 +1,5 @@
 import random
+import shutil
 from collections import defaultdict
 from itertools import chain
 from pathlib import Path
@@ -8,6 +9,7 @@ import Levenshtein
 from tqdm import tqdm
 
 from paraphone.tasks.filters.base import FilteringTaskMixin, CandidatesPairCSV, WordPair, CorpusFinalFilteringTask
+from paraphone.tasks.phonemize import PhonemizedWordsCSV
 from paraphone.tasks.tokenize import TokenizedWordsCSV
 from paraphone.tasks.wuggy_gen import FakeWordsCandidatesCSV
 from paraphone.utils import logger
@@ -26,6 +28,8 @@ class InitFilteringTask(FilteringTaskMixin):
 
     def run(self, workspace: Workspace):
         steps_folder = workspace.candidates_filtering / Path("steps")
+        # cleaning up folder in case of re-initing
+        shutil.rmtree(steps_folder)
         steps_folder.mkdir(parents=True, exist_ok=True)
 
         wuggy_candidates_csv = FakeWordsCandidatesCSV(workspace.wuggy / Path("candidates.csv"))
@@ -138,11 +142,36 @@ class MostFrequentHomophoneFilterTask(FilteringTaskMixin):
                 self.kept_word_pho[word_pho] = word
 
         self.kept_words = set(self.kept_word_pho.values())
+        self.filter(workspace)
+
+
+class WuggyHomophonesFilterTask(FilteringTaskMixin):
+    """Filters out fake word whose phonetic form matches that of a real word."""
+    # TODO: based on dataset or on dictionary?
+    requires = [
+        "phonemized/all.csv"
+    ]
+    step_name = "wuggy-homophones"
+
+    def __init__(self):
+        super().__init__()
+        self.all_words_phonemized: Set[str] = set()
+
+    def keep_pair(self, word_pair: WordPair) -> bool:
+        return word_pair.fake_word_pho not in self.all_words_phonemized
+
+    def run(self, workspace: Workspace):
+        phonemized_words_csv = PhonemizedWordsCSV(
+            workspace.phonemized / Path("all.csv")
+        )
+        self.all_words_phonemized = {" ".join(word_pho) for _, word_pho in phonemized_words_csv}
+
+        self.filter(workspace)
 
 
 class LevenshteinFilterTask(FilteringTaskMixin):
     """Keeps pairs whose edit distance is lower than a threshold"""
-    step_name = "random"
+    step_name = "levenshtein"
 
     def __init__(self, max_distance: int):
         super().__init__()

@@ -118,7 +118,7 @@ class NgramBalanceScoresTask(CorpusFinalFilteringTask):
     ]
     step_name = "ngram"
 
-    def __init__(self, for_corpus: Optional[int]):
+    def __init__(self, for_corpus: Optional[int] = None):
         super().__init__(for_corpus=for_corpus)
         self._chosen_pairs: Set[Tuple[str, str]] = set()
 

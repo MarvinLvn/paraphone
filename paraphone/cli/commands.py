@@ -9,7 +9,7 @@ from ..tasks.corpora import CorporaCreationTask
 from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTask, CMUENSetupTask, CelexSetupTask, \
     PhonemizerSetupTask
 from ..tasks.filters.simple import InitFilteringTask, RandomFilterTask, RandomPairFilterTask, EqualsFilterTask, \
-    LevenshteinFilterTask, MostFrequentHomophoneFilterTask
+    LevenshteinFilterTask, MostFrequentHomophoneFilterTask, WuggyHomophonesFilterTask
 from ..tasks.filters.ngrams import NgramScoringTask, NgramBalanceScoresTask
 from ..tasks.filters.seq2seq import P2GWordsFilterTask, G2PtoP2GNonWordsFilterTask
 from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleSpeakCredentials
@@ -376,13 +376,29 @@ class FilterP2GtoG2PCommand(BaseCommand):
         return G2PtoP2GNonWordsFilterTask()
 
 
+class FullDefaultFilteringPipelineCommand(BaseCommand):
+    COMMAND = "full"
+    DESCRIPTION = "Full default filtering pipeline (equals pairs, homophones, " \
+                  "wuggy-homophones, levenshtein and ngrams)"
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return [InitFilteringTask(),
+                EqualsFilterTask(),
+                MostFrequentHomophoneFilterTask(),
+                WuggyHomophonesFilterTask(),
+                LevenshteinFilterTask(max_distance=3),
+                NgramScoringTask(),
+                NgramBalanceScoresTask()]
+
+
 class FilterCommand(CommandGroup):
     COMMAND = "filter"
     DESCRIPTION = "Filter out real words/fake words candidates pair using various methods"
     SUBCOMMANDS = [FilterNgramCommand, FilterP2GCommand, FilterP2GtoG2PCommand,
                    FilterRandomCommand, FilterInitCommand, FilterEqualsCommand,
                    FilterRandomPairsCommand, FilterLevenshteinCommand,
-                   FilterHomophonesCommand]
+                   FilterHomophonesCommand, FullDefaultFilteringPipelineCommand]
 
 
 class CorporaNgramStats(BaseCommand):
