@@ -6,5 +6,16 @@
 - ask about the ranking of frequency (why not use an adaptative ranking) in balancing
 - use multiprocess.pool in wuggy gen
 - add cli endpoint in setup.py
-- add filtering reset command
 - add wuggy-per-corpus
+- ngrams: virer les unbounded
+- stats à obtenir
+  - histogramme des moyennes de ngrma-prob pour chaque mot/non mot
+- new commands
+  - "synth test"
+  - "synth corpus x"
+  - "synth all [-y]"
+- synth results :
+  - synth/audio/ -> all audio files, indexed by phonetic form "a_k_a_b.mp3"
+  - synth/tests/ -> test audio files, indexed by phoneme form "j.mp3"
+- add a "GoogleSpeakSynthesizer" class that wraps synth
+- add test for each phoneme using tokenized words

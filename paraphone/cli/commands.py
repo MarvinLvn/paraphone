@@ -151,7 +151,8 @@ class ImportGoogleTTSCredentialCommand(BaseCommand):
 class ImportCommand(CommandGroup):
     COMMAND = "import"
     DESCRIPTION = "Import some data to the workspace"
-    SUBCOMMANDS = [ImportFamiliesCommand, ImportDatasetCommand, ImportGoogleTTSCredentialCommand]
+    SUBCOMMANDS = [ImportFamiliesCommand, ImportDatasetCommand,
+                   ImportGoogleTTSCredentialCommand]
 
 
 class SetupDictionnaryCommand(BaseCommand):
