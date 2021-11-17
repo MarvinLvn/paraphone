@@ -8,14 +8,15 @@ from ..tasks.base import BaseTask
 from ..tasks.corpora import CorporaCreationTask
 from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTask, CMUENSetupTask, CelexSetupTask, \
     PhonemizerSetupTask
-from ..tasks.filters.simple import InitFilteringTask, RandomFilterTask, RandomPairFilterTask, EqualsFilterTask, \
-    LevenshteinFilterTask, MostFrequentHomophoneFilterTask, WuggyHomophonesFilterTask
 from ..tasks.filters.ngrams import NgramScoringTask, NgramBalanceScoresTask
 from ..tasks.filters.seq2seq import P2GWordsFilterTask, G2PtoP2GNonWordsFilterTask
+from ..tasks.filters.simple import InitFilteringTask, RandomFilterTask, RandomPairFilterTask, EqualsFilterTask, \
+    LevenshteinFilterTask, MostFrequentHomophoneFilterTask, WuggyHomophonesFilterTask
 from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleSpeakCredentials
 from ..tasks.phonemize import PhonemizeFrenchTask, PhonemizeEnglishTask
 from ..tasks.stats import CorporaNgramStatsTask
 from ..tasks.syllabify import SyllabifyFrenchTask, SyllabifyEnglishTask
+from ..tasks.synth import CorporaSynthesisTask, TestSynthesisTask
 from ..tasks.tokenize import TokenizeFrenchTask, TokenizeEnglishTask
 from ..tasks.workspace_init import WorkspaceInitTask
 from ..tasks.wuggy_gen import WuggyPrepareTask, WuggyGenerationFrTask, WuggyGenerationEnTask
@@ -207,17 +208,48 @@ class CorpusGenCommand(BaseCommand):
         return CorporaCreationTask()
 
 
-class CorpusSynthCommand(BaseCommand):
-    COMMAND = "synth"
-    DESCRIPTION = "Generate audio recordings for corpora"
+class SynthTestCommand(BaseCommand):
+    COMMAND = "test"
+    DESCRIPTION = "Test synthesis on all phonemes of the dataset"
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return TestSynthesisTask()
+
+
+class SynthCorpusCommand(BaseCommand):
+    COMMAND = "corpus"
+    DESCRIPTION = "Do synthesis for one corpus"
 
     @classmethod
     def init_parser(cls, parser: ArgumentParser):
-        pass
+        parser.add_argument("corpus_id", type=int, help="Corpus id for which to do synthesis")
+        parser.add_argument("-y", "--yes", action="store_true",
+                            help="Don't ask for confirmation before synthesis")
 
     @classmethod
-    def build_task(cls, args: Namespace, workspace: Workspace):
-        pass
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return CorporaSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id)
+
+
+class SynthAllCommand(BaseCommand):
+    COMMAND = "all"
+    DESCRIPTION = "Do synthesis for all corpora"
+
+    @classmethod
+    def init_parser(cls, parser: ArgumentParser):
+        parser.add_argument("-y", "--yes", action="store_true",
+                            help="Don't ask for confirmation before synthesis")
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return CorporaSynthesisTask(no_confirmation=args.yes)
+
+
+class CorpusSynthCommand(CommandGroup):
+    COMMAND = "synth"
+    DESCRIPTION = "Generate audio recordings for corpora"
+    SUBCOMMANDS = [SynthAllCommand, SynthTestCommand, SynthCorpusCommand]
 
 
 class CorporaCommand(CommandGroup):
