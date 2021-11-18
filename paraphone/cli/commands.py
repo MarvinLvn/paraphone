@@ -9,7 +9,6 @@ from ..tasks.corpora import CorporaCreationTask
 from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTask, CMUENSetupTask, CelexSetupTask, \
     PhonemizerSetupTask
 from ..tasks.filters.ngrams import NgramScoringTask, NgramBalanceScoresTask
-from ..tasks.filters.seq2seq import P2GWordsFilterTask, G2PtoP2GNonWordsFilterTask
 from ..tasks.filters.simple import InitFilteringTask, RandomFilterTask, RandomPairFilterTask, EqualsFilterTask, \
     LevenshteinFilterTask, MostFrequentHomophoneFilterTask, WuggyHomophonesFilterTask
 from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleSpeakCredentials
@@ -74,8 +73,14 @@ class CommandGroup(BaseCommand):
         subparsers = parser.add_subparsers()
         for command in cls.SUBCOMMANDS:
             subparser = subparsers.add_parser(command.COMMAND)
-            subparser.set_defaults(func=command.main)
+            subparser.set_defaults(func=command.main,
+                                   command_class=command,
+                                   subparser=subparser)
             command.init_parser(subparser)
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        raise NotImplemented()
 
 
 class WorkspaceInitCommand(BaseCommand):
@@ -246,7 +251,7 @@ class SynthAllCommand(BaseCommand):
         return CorporaSynthesisTask(no_confirmation=args.yes)
 
 
-class CorpusSynthCommand(CommandGroup):
+class SynthCommand(CommandGroup):
     COMMAND = "synth"
     DESCRIPTION = "Generate audio recordings for corpora"
     SUBCOMMANDS = [SynthAllCommand, SynthTestCommand, SynthCorpusCommand]
@@ -255,7 +260,7 @@ class CorpusSynthCommand(CommandGroup):
 class CorporaCommand(CommandGroup):
     COMMAND = "corpora"
     DESCRIPTION = "Operations on corpora"
-    SUBCOMMANDS = [CorpusGenCommand, CorpusSynthCommand]
+    SUBCOMMANDS = [CorpusGenCommand, SynthCommand]
 
 
 class PhonemizeCommand(BaseCommand):
@@ -391,24 +396,6 @@ class FilterNgramCommand(BaseCommand):
         return [NgramScoringTask(), NgramBalanceScoresTask(args.corpus)]
 
 
-class FilterP2GCommand(BaseCommand):
-    COMMAND = "seq2seq-words"
-    DESCRIPTION = "Filter out real words using ses2seq"
-
-    @classmethod
-    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return P2GWordsFilterTask()
-
-
-class FilterP2GtoG2PCommand(BaseCommand):
-    COMMAND = "seq2seq-fake-words"
-    DESCRIPTION = "Filter out fake words using ses2seq"
-
-    @classmethod
-    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return G2PtoP2GNonWordsFilterTask()
-
-
 class FullDefaultFilteringPipelineCommand(BaseCommand):
     COMMAND = "full"
     DESCRIPTION = "Full default filtering pipeline (equals pairs, homophones, " \
@@ -428,7 +415,7 @@ class FullDefaultFilteringPipelineCommand(BaseCommand):
 class FilterCommand(CommandGroup):
     COMMAND = "filter"
     DESCRIPTION = "Filter out real words/fake words candidates pair using various methods"
-    SUBCOMMANDS = [FilterNgramCommand, FilterP2GCommand, FilterP2GtoG2PCommand,
+    SUBCOMMANDS = [FilterNgramCommand,
                    FilterRandomCommand, FilterInitCommand, FilterEqualsCommand,
                    FilterRandomPairsCommand, FilterLevenshteinCommand,
                    FilterHomophonesCommand, FullDefaultFilteringPipelineCommand]
