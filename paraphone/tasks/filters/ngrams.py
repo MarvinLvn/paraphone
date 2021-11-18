@@ -24,6 +24,15 @@ class NgramScoresCSV(WorkspaceCSV):
     def __init__(self, file_path: Path):
         super().__init__(file_path, separator="\t", header=self.header)
 
+    def __iter__(self) -> Iterable[Tuple[str, float, float, float, float]]:
+        with self.dict_reader as dict_reader:
+            for row in dict_reader:
+                yield (row["phonetic"],
+                       float(row["unigram_bounded"]),
+                       float(row["unigram_unbounded"]),
+                       float(row["bigram_bounded"]),
+                       float(row["bigram_unbounded"]))
+
 
 class PhonemizedWordsFrequencyCSV(WorkspaceCSV):
     header = ['word', 'phonetic', 'frequency']

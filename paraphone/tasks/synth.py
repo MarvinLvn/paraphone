@@ -76,19 +76,18 @@ class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
     def store_output(self, audio_bytes: bytes, phonemic_form: str, folder: Path):
         raise NotImplemented()
 
-    async def tasks_limiter(self, tasks: List[Awaitable[Tuple[bytes, List[str]]]]):
-        for task in tasks:
-            with self.semaphore:
-                yield await task
+    async def tasks_limiter(self, task: Awaitable[Tuple[bytes, List[str]]]):
+        async with self.semaphore:
+            return await task
 
     async def run_synth(self, words_pho: List[str],
                         synthesizer: GoogleSpeakSynthesizer,
                         output_folder: Path):
-        synth_tasks = [synthesizer.synth(word_pho.split(" ")) for word_pho in words_pho]
-        request_limited = self.tasks_limiter(synth_tasks)
-        async for audio_bytes, phonemes in async_tqdm.as_completed(request_limited,
-                                                                   total=len(words_pho)):
-            self.store_output(audio_bytes, phonemes, output_folder)
+        synth_tasks = [self.tasks_limiter(synthesizer.synth(word_pho.split(" ")))
+                       for word_pho in words_pho]
+        for synth_task in async_tqdm.as_completed(synth_tasks):
+            audio_bytes, phonemes = await synth_task
+            self.store_output(audio_bytes, " ".join(phonemes), output_folder)
 
 
 class TestSynthesisTask(BaseSpeechSynthesisTask):
@@ -102,7 +101,7 @@ class TestSynthesisTask(BaseSpeechSynthesisTask):
 
     def store_output(self, audio_bytes: bytes, phonemic_form: str, folder: Path):
         pho = self.test_words[phonemic_form]
-        with open(folder / Path(f"{pho}.ogg"), "wb") as file:
+        with open(folder / Path(f"{pho}-{phonemic_form}.ogg"), "wb") as file:
             file.write(audio_bytes)
 
     def run(self, workspace: Workspace):
@@ -116,7 +115,7 @@ class TestSynthesisTask(BaseSpeechSynthesisTask):
                 word_pho_set = set(word_pho.split(" "))
                 # finding out if there's a new phoneme candidate, and if so,
                 # using the current word as an example
-                new_pho_candidates = set(self.test_words.values()).intersection(word_pho_set)
+                new_pho_candidates = word_pho_set - set(self.test_words.values())
                 if new_pho_candidates:
                     self.test_words[word_pho] = new_pho_candidates.pop()
 
@@ -130,6 +129,10 @@ class TestSynthesisTask(BaseSpeechSynthesisTask):
         test_audio_folder.mkdir(parents=True, exist_ok=True)
         synth = GoogleSpeakSynthesizer(lang="fr", voice_id=VOICES["fr"][0],
                                        credentials_path=credentials_path)
+
+        # self.run_synth(list(self.test_words.keys()),
+        #                synth,
+        #                test_audio_folder)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(self.run_synth(list(self.test_words.keys()),
                                                synth,
