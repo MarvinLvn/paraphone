@@ -3,19 +3,28 @@
 - add config option for default verbose
 - use the seq2seq output to generate a graphemic representation of the fake words
 - DONE : eval ngrams over the corpora to check if they're similar or not among those
-- ask about the ranking of frequency (why not use an adaptative ranking) in balancing
+- DONE : ask about the ranking of frequency (why not use an adaptative ranking) in balancing
 - use multiprocess.pool in wuggy gen
 - add cli endpoint in setup.py
-- add wuggy-per-corpus
 - ngrams: virer les unbounded
 - stats à obtenir
   - histogramme des moyennes de ngrma-prob pour chaque mot/non mot
-- new commands
+- DONE : new commands
   - "synth test"
   - "synth corpus x"
   - "synth all [-y]"
-- synth results :
+- DONE : synth results :
   - synth/audio/ -> all audio files, indexed by phonetic form "a_k_a_b.mp3"
   - synth/tests/ -> test audio files, indexed by phoneme form "j.mp3"
-- add a "GoogleSpeakSynthesizer" class that wraps synth
-- add test for each phoneme using tokenized words
+- DONE: add a "GoogleSpeakSynthesizer" class that wraps synth
+- DONE : add test for each phoneme using tokenized words
+- tokenize special test words to check the pronunciation
+- add the corpus exclusion logic to the corpus generation code
+- regarding "gn":
+  - test with sampa to check if it renders correctly
+  - else, refold it into "nj" but while keeping "nj" as a unique phoneme
+- regarding word/fake words candidates, check the number of fake word per word before the balancing
+- check the same histograms, but _after_ the balancing step
+- fix the 8 + i -> devient le mu de huit (lexique org foldings)
+- DONE : fix the uy de CMU en mu (de huit)
+- fold the "un" onto "in"

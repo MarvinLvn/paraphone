@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from asyncio import Semaphore
 from pathlib import Path
 from typing import Optional, Iterable, List, Tuple, Awaitable, Dict
@@ -51,7 +52,7 @@ class GoogleSpeakSynthesizer:
         all_words_length = sum(len(w) for w in words_pho)
         return (ssml_template_len + all_words_length) * self.WAVENET_VOICE_PRICE_PER_CHAR
 
-    async def synth(self, phonemes: List[str]) -> Tuple[bytes, List[str]]:
+    async def synth_phonemes(self, phonemes: List[str]) -> Tuple[bytes, List[str]]:
         ssml = self.SSML_TEMPLATE.format(phonemes="".join(phonemes))
         synthesis_input = texttospeech.SynthesisInput(ssml=ssml)
         response = await self.client.synthesize_speech(
@@ -60,6 +61,14 @@ class GoogleSpeakSynthesizer:
             audio_config=self.audio_config
         )
         return response.audio_content, phonemes
+
+    async def synth_ssml(self, ssml: str) -> bytes:
+        response = await self.client.synthesize_speech(
+            input=texttospeech.SynthesisInput(ssml=ssml),
+            voice=self.voice,
+            audio_config=self.audio_config
+        )
+        return response.audio_content
 
 
 class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
@@ -83,7 +92,7 @@ class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
     async def run_synth(self, words_pho: List[str],
                         synthesizer: GoogleSpeakSynthesizer,
                         output_folder: Path):
-        synth_tasks = [self.tasks_limiter(synthesizer.synth(word_pho.split(" ")))
+        synth_tasks = [self.tasks_limiter(synthesizer.synth_phonemes(word_pho.split(" ")))
                        for word_pho in words_pho]
         for synth_task in async_tqdm.as_completed(synth_tasks):
             audio_bytes, phonemes = await synth_task
@@ -144,9 +153,13 @@ class CorporaSynthesisTask(BaseSpeechSynthesisTask):
         "synth/audio/*.mp3"
     ]
 
+    @staticmethod
+    def get_filename(phonemic_form: str):
+        return f"{phonemic_form.replace(' ', '_')}.ogg"
+
     def store_output(self, audio_bytes: bytes, phonemic_form: str, folder: Path):
         file_name = phonemic_form.replace(" ", "_")
-        with open(folder / Path(f"{file_name}.ogg"), "wb") as file:
+        with open(folder / Path(self.get_filename(phonemic_form)), "wb") as file:
             file.write(audio_bytes)
 
     def __init__(self, no_confirmation: bool = False, for_corpus: Optional[int] = None):
@@ -178,7 +191,24 @@ class CorporaSynthesisTask(BaseSpeechSynthesisTask):
         synthesizers = [GoogleSpeakSynthesizer(lang, voice_id, credentials_path)
                         for voice_id in voices]
 
-        total_cost = sum(synth.estimate_price(all_words) for synth in synthesizers)
+        synth_words = {
+            synth: list(all_words) for synth in synthesizers
+        }
+        # filtering words that might already have been generated
+        for synth, words in list(synth_words.items()):
+            audio_folder = workspace.synth / Path(f"audio/{synth.voice_id}/")
+            if not audio_folder.exists():
+                continue
+            elif not list(audio_folder.iterdir()):
+                continue
+            synth_words[synth] = [
+                word for word in words
+                if not (audio_folder / Path(self.get_filename(word))).exists()
+            ]
+            logging.info(f"{len(words) - len(synth_words[synth])} words "
+                         f"already exist for {synth.voice_id} and won't be synthesized")
+
+        total_cost = sum(synth.estimate_price(words) for synth, words in synth_words.items())
         logger.info(f"Estimated cost is {total_cost}$")
         if not self.no_confirmation:
             if input("Do you want to proceed?\n[Y/n]").lower() != "y":
@@ -187,10 +217,10 @@ class CorporaSynthesisTask(BaseSpeechSynthesisTask):
 
         logger.info("Starting synthesis...")
         loop = asyncio.get_event_loop()
-        for synth in synthesizers:
+        for synth, words in synth_words.items():
             logger.info(f"For synth with voice id {synth.voice_id}")
             audio_folder = workspace.synth / Path(f"audio/{synth.voice_id}/")
             audio_folder.mkdir(parents=True, exist_ok=True)
-            loop.run_until_complete(self.run_synth(list(all_words),
+            loop.run_until_complete(self.run_synth(words,
                                                    synth,
                                                    audio_folder))
