@@ -28,3 +28,8 @@
 - fix the 8 + i -> devient le mu de huit (lexique org foldings)
 - DONE : fix the uy de CMU en mu (de huit)
 - fold the "un" onto "in"
+- Use start of words as foldings (not syllables) (lexique en fr, le celex en anglais)
+- CELEX:
+  - {~: not present in celex ({~ either)
+  - N or n for nasals?
+  - phonemizer : phonemes à deux composantes (ei ou O:) -> check avec pain
