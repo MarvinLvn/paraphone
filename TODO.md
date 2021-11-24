@@ -30,6 +30,9 @@
 - fold the "un" onto "in"
 - Use start of words as foldings (not syllables) (lexique en fr, le celex en anglais)
 - CELEX:
-  - {~: not present in celex ({~ either)
-  - N or n for nasals?
-  - phonemizer : phonemes à deux composantes (ei ou O:) -> check avec pain
+  - {~: not present in celex ({~ either): DONE
+  - N or n for nasals?: DONE
+  - phonemizer : phonemes à deux composantes (ei ou O:) -> check avec pain (DONE: c'est bon)
+  - problème du r*
+  - problème du "N," "l," "n," "m,"
+  - problème du O -> ɒ?

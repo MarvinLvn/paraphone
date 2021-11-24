@@ -168,8 +168,8 @@ class SetupDictionnaryCommand(BaseCommand):
     @classmethod
     def init_parser(cls, parser: ArgumentParser):
         parser.add_argument("--celex_path", type=Path,
-                            help="Path to the root of the CELEX2 dictionnary "
-                                 "dataset.")
+                            default=Path("/scratch1/data/raw_data/CELEX2/english/epw/epw.cd"),
+                            help="Path to the celex dictionary")
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) \

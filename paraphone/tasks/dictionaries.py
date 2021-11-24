@@ -2,7 +2,7 @@ import csv
 import re
 from pathlib import Path
 from shutil import copyfile
-from typing import Iterable, Tuple, List, Set, Dict, DefaultDict
+from typing import Iterable, Tuple, List, Set, Dict, DefaultDict, Optional
 
 import pandas as pd
 from pandas._libs.internals import defaultdict
@@ -10,7 +10,7 @@ from sortedcontainers import SortedDict
 from tqdm import tqdm
 
 from .base import BaseTask
-from ..utils import DICTIONARIES_FOLDER, logger, DATA_FOLDER, Phoneme, Syllable
+from ..utils import DICTIONARIES_FOLDER, logger, DATA_FOLDER, Phoneme, Syllable, count_lines
 from ..workspace import Workspace, WorkspaceCSV
 
 
@@ -243,25 +243,94 @@ class CelexSetupTask(DictionarySetupTask):
         "dictionaries/celex/onsets.txt",  # used by wordseg as a trainset
     ]
     DICT_SUBDIR = Path("celex")
+    ALL_PHONEMES = {'3:', '@', '@U', 'A:', 'A~:', 'D', 'E', 'I', 'I@', 'N', 'O:',
+                    'OI', 'O~:', 'O', 'S', 'T', 'U', 'U@', '&', '&~:', '&~',
+                    'V', 'Z', 'aI', 'aU', 'b', 'd', 'dZ', 'eI', 'f', 'g', 'h', 'i:',
+                    'j', 'k', 'l', 'm', 'n', 'p', 'r', 'r*',
+                    's', 't', 'tS', 'u:', 'v', 'w', 'x', 'z'}
 
-    def __init__(self, celex_folder: Path):
+    CONSONANTS = {
+        'N', 'Q', 'S', 'T',
+        'V', 'Z', 'b', 'd', 'dZ', 'f', 'g', 'h',
+        'j', 'k', 'l', 'm', 'n', 'p', 'r', 'r*',
+        's', 't', 'tS', 'v', 'w', 'x', 'z',
+    }
+
+    def __init__(self, celex_path: Optional[Path]):
         super().__init__()
-        self.celex_folder = celex_folder
+        self.celex_path = celex_path
+        folding_pho_len: DefaultDict[int, Set[str]] = defaultdict(set)
+        for pho in self.ALL_PHONEMES:
+            folding_pho_len[len(pho)].add(pho)
+        self.folding_pho_len = SortedDict(folding_pho_len.items())
+
+    def find_onset(self, phonemes: List[str]) -> List[str]:
+        onset = []
+        for pho in phonemes:
+            if pho in self.CONSONANTS:
+                onset.append(pho)
+            else:
+                break
+        return onset if onset else None
+
+    def fold_onsets(self, onsets: Set[Tuple[str]], folding_csv: FoldingCSV):
+        for onset in onsets:
+            yield " ".join(folding_csv.fold(list(onset)))
+
+    def parse_phonemes(self, phonemic_form: str) -> List[str]:
+        input_phonemes = str(phonemic_form)
+        parsed_phonemes = []
+        while phonemic_form:
+            found_phone = False
+            # checking longer folding candidates first
+            for pho_len, phonemes in reversed(self.folding_pho_len.items()):
+                candidates = phonemic_form[:pho_len]
+                for pho in phonemes:
+                    if candidates == pho:
+                        parsed_phonemes.append(pho)
+                        phonemic_form = phonemic_form[pho_len:]
+                        found_phone = True
+                        break
+                if found_phone:  # breaking out of second loop
+                    break
+            else:
+                raise ValueError(f"Couldn't parse phones in {input_phonemes}, stuck "
+                                 f"at {phonemic_form}")
+        return parsed_phonemes
 
     def run(self, workspace: Workspace):
         dict_csv = self.setup_dict_csv(workspace)
-        all_names = set()
+        onsets: Set[Tuple[str]] = set()
 
-        celex_dict_path = self.celex_folder / Path("english/epw/epw.cd")
-        with open(celex_dict_path) as celex_file, \
-                dict_csv.dict_writer as dict_writer:
+        clx_phon_re = re.compile(r"\[(.+?)\]")
+        entries_count = count_lines(self.celex_path)
+        logger.info(f"Loading celex words from {self.celex_path}")
+        with open(self.celex_path) as celex_file, dict_csv.dict_writer as dict_writer:
             dict_writer.writeheader()
-            celex_reader = csv.reader(celex_file, delimiter="\\")
-            for row in tqdm(celex_reader):
-                word = row[1].lower()
+            for line in tqdm(celex_file, total=entries_count):
+                row = line.strip().split("\\")
+                celex_syllabic_form = row[8].replace(",", "")
+                re_match = clx_phon_re.findall(celex_syllabic_form)
+                phonemes = self.parse_phonemes("".join(list(re_match)))
+                onset = self.find_onset(phonemes)
+                if onset is not None:
+                    onsets.add(tuple(self.find_onset(phonemes)))
+                dict_writer.writerow({
+                    "word": row[1],
+                    "phonetic": " ".join(phonemes),
+                    "syllabic": None})
 
-                # TODO: remove prosody information (', _?, #?)
-                # TODO: parse phonemes (some have length of two)
+        # copying and loading foldings
+        self.copy_folding(workspace, DATA_FOLDER / Path(f"foldings/en/celex.csv"))
+        foldings_csv = FoldingCSV(workspace.dictionaries / Path("celex/folding.csv"))
+        foldings_csv.load()
+        onsets = set(self.fold_onsets(onsets, foldings_csv))
+
+        onsets_path = workspace.dictionaries / Path("celex/onsets.txt")
+        logger.info(f"Writing onsets file to {onsets_path}")
+        with open(onsets_path, "w") as onsets_file:
+            for onset in onsets:
+                onsets_file.write(" ".join(onset) + "\n")
 
 
 class CMUSetupTask(DictionarySetupTask):
