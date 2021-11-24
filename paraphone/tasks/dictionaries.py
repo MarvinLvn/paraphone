@@ -134,6 +134,7 @@ class LexiqueSetupTask(DictionarySetupTask):
             onset_match = self.ONSET_RE.match(syllable)
             if onset_match is not None:
                 yield onset_match[0]
+            break  # WARNING: added to use just beginning of word as onset
 
     def fold_onsets(self, onsets: Set[str], folding_csv: FoldingCSV):
         for onset in onsets:
@@ -185,7 +186,7 @@ class LexiqueSetupTask(DictionarySetupTask):
 
         # copying vowels
         vowels_path = workspace.dictionaries / Path("vowels.txt")
-        logger.info(f"'Copying vowels to {vowels_path}")
+        logger.info(f"Copying vowels to {vowels_path}")
         copyfile(DATA_FOLDER / Path("vowels_fr.txt"), vowels_path)
 
 
@@ -251,7 +252,7 @@ class CelexSetupTask(DictionarySetupTask):
 
     CONSONANTS = {
         'N', 'Q', 'S', 'T',
-        'V', 'Z', 'b', 'd', 'dZ', 'f', 'g', 'h',
+        'Z', 'b', 'd', 'dZ', 'f', 'g', 'h',
         'j', 'k', 'l', 'm', 'n', 'p', 'r', 'r*',
         's', 't', 'tS', 'v', 'w', 'x', 'z',
     }
@@ -307,7 +308,7 @@ class CelexSetupTask(DictionarySetupTask):
         logger.info(f"Loading celex words from {self.celex_path}")
         with open(self.celex_path) as celex_file, dict_csv.dict_writer as dict_writer:
             dict_writer.writeheader()
-            for line in tqdm(celex_file, total=entries_count):
+            for line in tqdm(celex_file, desc="CELEX", total=entries_count):
                 row = line.strip().split("\\")
                 celex_syllabic_form = row[8].replace(",", "")
                 re_match = clx_phon_re.findall(celex_syllabic_form)
@@ -332,6 +333,11 @@ class CelexSetupTask(DictionarySetupTask):
             for onset in onsets:
                 onsets_file.write(" ".join(onset) + "\n")
 
+        # copying vowels
+        vowels_path = workspace.dictionaries / Path("vowels.txt")
+        logger.info(f"Copying vowels to {vowels_path}")
+        copyfile(DATA_FOLDER / Path("vowels_en.txt"), vowels_path)
+
 
 class CMUSetupTask(DictionarySetupTask):
     dict_file = ""
@@ -341,9 +347,10 @@ class CMUSetupTask(DictionarySetupTask):
         dict_csv = self.setup_dict_csv(workspace)
         cmu_filepath = DICTIONARIES_FOLDER / Path(self.dict_file)
         logger.info(f"Loading CMU dict from file {cmu_filepath}.")
+        lines_count = count_lines(cmu_filepath)
         with open(cmu_filepath) as dict_txt, dict_csv.dict_writer as dict_writer:
             dict_writer.writeheader()
-            for line in tqdm(dict_txt, desc="CMU"):
+            for line in tqdm(dict_txt, desc="CMU", total=lines_count):
                 line = line.strip("-")
                 word, *phonemes = line.strip().split(" ")
                 # if word is of the type "read(2)" (and thus a secondary
