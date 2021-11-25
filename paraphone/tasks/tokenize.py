@@ -93,6 +93,7 @@ class TokenizeTask(BaseTask):
                         if "-" in word_candidate:
                             candidates += word_candidate.split("-")
 
+        logger.debug(f"For file {text_id}:")
         logger.debug(f"Tokenized {len(tokenization_csv.words)} unique words")
         logger.debug(f"Tokenized {sum(tokenization_csv.words.values())} words total")
         tokenization_csv.write_entries()

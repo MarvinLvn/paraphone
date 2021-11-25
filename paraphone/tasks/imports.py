@@ -31,19 +31,26 @@ class BaseImporter(metaclass=abc.ABCMeta):
 
     @classmethod
     def get_id_from_path(cls, path: Path):
-        return cls.id_regex.match(path.stem)[1]
+        try:
+            return cls.id_regex.match(path.stem)[1]
+        except TypeError:
+            raise ValueError()
 
     def __iter__(self) -> Iterable[Tuple[FileID, Path]]:
         for file_path in self.dataset_path.glob(self.glob_pattern):
-            file_id = self.get_id_from_path(file_path)
+            try:
+                file_id = self.get_id_from_path(file_path)
+            except ValueError:
+                logger.warning(f"Skipping file {file_path}, invalid file id.")
+                continue
             # computing path of the file relative to the workspace
             rel_path = Path(relpath(path=file_path, start=self.workspace.root_path))
             yield file_id, rel_path
 
 
 class LibriVoxImporter(BaseImporter):
-    id_regex = re.compile("(.+)_(librivox_)?64kb_mp3_text")
-    glob_pattern = "*_librivox_*.txt"
+    id_regex = re.compile("(.+?)_(librivox_)?(64kb_mp3_)?text")
+    glob_pattern = "*_text.txt"
 
     # removing the useless end of file to get file_id
     # eg : daughter_land_1101_librivox_64kb_mp3_text.txt -> daughter_land_1101
@@ -165,8 +172,7 @@ class DatasetImportTask(BaseTask):
             try:
                 symlink(self.dataset_path.absolute(), dataset_import_path)
             except FileExistsError as err:
-                logger.error(f"Dataset folder already exists: {err}")
-                return
+                logger.warning(f"Dataset folder already exists: {err}")
         else:
             logger.warning("No copy nor symlink action specified, aborting.")
             return
