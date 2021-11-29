@@ -36,3 +36,14 @@
   - problème du r*
   - problème du "N," "l," "n," "m,"
   - problème du O -> ɒ?
+- Notes phonémisation:
+  - Phonemizer:
+    - father : fɑːðɚ
+    - pot: pɑːt -> thus O is ɑ
+    - affair: ɐfɛɹ
+    - aventure: ɐdvɛntʃɚ
+  - CMU: 
+    - father: F AA1 DH ER0
+    - affair AH0 F EH1 R
+    - pot: P AA1 T
+    - adventure: AE0 D V EH1 N CH ER0
