@@ -1,8 +1,8 @@
 import logging
 import typing
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
-from typing import List, Set, Iterable, Tuple, Dict
+from typing import List, Iterable, Tuple, Dict
 
 import tqdm
 from phonemizer.backend import EspeakBackend
@@ -30,7 +30,7 @@ class PhonemizedWordsCSV(WorkspaceCSV):
         return {word: phonemes for word, phonemes in self}
 
     @property
-    def unique_phonemic(self):
+    def unique_phonemic(self) -> Iterable[List[Phoneme]]:
         phonemic = set()
         with self.dict_reader as dict_reader:
             for row in dict_reader:
@@ -46,14 +46,8 @@ class BasePhonemizer:
 
     def __init__(self, workspace: Workspace):
         dictionary_folder = workspace.dictionaries / Path(self.folder_name)
-        self.folding_csv = FoldingCSV(dictionary_folder / Path("folding.csv"))
-        self.folding_csv.load()
-
-        words_dict = DictionaryCSV(dictionary_folder / Path("dict.csv"))
+        words_dict = DictionaryCSV(dictionary_folder / Path("dict_folded.csv"))
         self.words_dict = {word: phonemes for word, phonemes, _ in words_dict}
-
-    def fold(self, phones: List[str]) -> List[str]:
-        return self.folding_csv.fold(phones)
 
     def phonemize(self, word: str) -> List[str]:
         return self.words_dict[word]
@@ -76,44 +70,44 @@ class PhonemizerWrapper(BasePhonemizer):
             language_switch="remove-utterance",
             logger=null_logger())
 
+    def fold(self, phones: List[str]) -> List[str]:
+        return self.folding_csv.fold(phones)
+
     def phonemize(self, word: str) -> List[str]:
         phonemized = self.backend.phonemize(text=[word],
                                             separator=self.separator,
                                             strip=True)
         if not phonemized[0]:
             raise KeyError(word)
-        return phonemized[0].strip().split(" ")
+        phonemes = phonemized[0].strip().split(" ")
+        return self.fold(phonemes)
 
 
 class CMUFrenchPhonemizer(BasePhonemizer):
     folder_name = "cmu_fr"
     requires = [
-        "dictionaries/cmu_fr/dict.csv",
-        "dictionaries/cmu_fr/folding.csv",
+        "dictionaries/cmu_fr/dict_folded.csv",
     ]
 
 
 class CMUEnglishPhonemizer(BasePhonemizer):
     folder_name = "cmu_en"
     requires = [
-        "dictionaries/cmu_en/dict.csv",
-        "dictionaries/cmu_en/folding.csv",
+        "dictionaries/cmu_en/dict_folded.csv",
     ]
 
 
 class LexiquePhonemizer(BasePhonemizer):
     folder_name = "lexique"
     requires = [
-        "dictionaries/lexique/dict.csv",
-        "dictionaries/lexique/folding.csv",
+        "dictionaries/lexique/dict_folded.csv",
     ]
 
 
 class CelexPhonemizer(BasePhonemizer):
     folder_name = "celex"
     requires = [
-        "dictionaries/celex/dict.csv",
-        "dictionaries/celex/folding.csv",
+        "dictionaries/celex/dict_folded.csv",
     ]
 
 
@@ -157,7 +151,6 @@ class PhonemizeTask(BaseTask):
                 for phonemizer in phonemizers:
                     try:
                         phones = phonemizer.phonemize(word)
-                        folded_phones = phonemizer.fold(phones)
                     except KeyError:
                         continue
                     except ValueError as err:
@@ -166,14 +159,14 @@ class PhonemizeTask(BaseTask):
                     else:
                         # if current word's phonetic form is already present,
                         # ignore word (else, add it to the current set of phonemized words)
-                        phonemized_counter["".join(folded_phones)] += 1
+                        phonemized_counter["".join(phones)] += 1
 
                         # logging the phonemization in the stats
                         self.stats[phonemizer.__class__.__name__] += 1
 
                         dict_writer.writerow({
                             "word": word,
-                            "phones": " ".join(folded_phones)
+                            "phones": " ".join(phones)
                         })
                         break
                 else:

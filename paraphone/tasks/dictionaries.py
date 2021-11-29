@@ -20,12 +20,15 @@ class DictionaryCSV(WorkspaceCSV):
     def __init__(self, file_path: Path):
         super().__init__(file_path, separator="\t", header=self.header)
 
-    def __iter__(self) -> Iterable[Tuple[str, List[Phoneme], List[Syllable]]]:
+    def __iter__(self) -> Iterable[Tuple[str, List[Phoneme], Optional[List[Syllable]]]]:
         with self.dict_reader as dict_reader:
             for row in dict_reader:
                 phonemes = row["phonetic"].split()
-                syllables = [syllable.split()
-                             for syllable in row["syllabic"].split("-")]
+                if row["syllabic"]:
+                    syllables = [syllable.split()
+                                 for syllable in row["syllabic"].split("-")]
+                else:
+                    syllables = None
                 yield row["word"], phonemes, syllables
 
 
@@ -87,15 +90,40 @@ class DictionarySetupTask(BaseTask):
     creates = ["dictionaries/"]
     DICT_SUBDIR: Path
     FOLDING_PATH: Path
+    folding_csv: FoldingCSV
+
+    def load_folding(self):
+        self.folding_csv = FoldingCSV(DATA_FOLDER / self.FOLDING_PATH)
+        self.folding_csv.load()
+
+    def fold_dictionary(self, workspace: Workspace):
+        unfolded_dict_path = workspace.dictionaries / self.DICT_SUBDIR / Path("dict.csv")
+        folded_dict_path = workspace.dictionaries / self.DICT_SUBDIR / Path("dict_folded.csv")
+        unfolded_csv = DictionaryCSV(unfolded_dict_path)
+        folded_csv = DictionaryCSV(folded_dict_path)
+        logger.info(f"Folding {unfolded_dict_path} with {folded_dict_path} with folding {self.FOLDING_PATH}")
+        with folded_csv.dict_writer as csv_writer:
+            csv_writer.writeheader()
+            for word, phonetic, syllabic in tqdm(unfolded_csv, total=unfolded_csv.lines_count):
+                try:
+                    folded = self.folding_csv.fold(phonetic)
+                except ValueError as err:
+                    logger.error(f"Error in phonemize/fold for word {word}: {err}")
+                    continue
+                csv_writer.writerow({
+                    "word": word,
+                    "phonetic": " ".join(folded),
+                    "syllabic": syllabic
+                })
 
     def setup_dict_csv(self, workspace: Workspace):
         dict_dir = workspace.dictionaries / self.DICT_SUBDIR
         dict_dir.mkdir(parents=True, exist_ok=True)
         return DictionaryCSV(dict_dir / Path("dict.csv"))
 
-    def copy_folding(self, workspace: Workspace, folding_path: Path):
+    def copy_folding(self, workspace: Workspace):
         dict_dir = workspace.dictionaries / self.DICT_SUBDIR
-        copyfile(folding_path, dict_dir / Path("folding.csv"))
+        copyfile(DATA_FOLDER / self.FOLDING_PATH, dict_dir / Path("folding.csv"))
 
 
 class PhonemizerSetupTask(DictionarySetupTask):
@@ -109,7 +137,8 @@ class PhonemizerSetupTask(DictionarySetupTask):
         dict_dir = workspace.dictionaries / self.DICT_SUBDIR
         dict_dir.mkdir(parents=True, exist_ok=True)
         lang = workspace.config["lang"]
-        self.copy_folding(workspace, DATA_FOLDER / Path(f"foldings/{lang}/phonemizer.csv"))
+        self.FOLDING_PATH = Path(f"foldings/{lang}/phonemizer.csv")
+        self.copy_folding(workspace)
 
 
 class LexiqueSetupTask(DictionarySetupTask):
@@ -122,6 +151,8 @@ class LexiqueSetupTask(DictionarySetupTask):
     ]
 
     DICT_SUBDIR: Path = Path("lexique/")
+    FOLDING_PATH = Path("foldings/fr/lexique.csv")
+
     VOWELS = {"a", "i", "y", "u", "o", "O", "E", "°", "2", "9", "5", "1",
               "@", "§", "3"}
     CONSONANTS = {"p", "b", "t", "d", "k", "g", "f", "v", "s", "z", "S",
@@ -162,10 +193,8 @@ class LexiqueSetupTask(DictionarySetupTask):
 
         # copying and loading foldings
         lang = workspace.config["lang"]
-        self.copy_folding(workspace, DATA_FOLDER / Path(f"foldings/{lang}/lexique.csv"))
-        foldings_csv = FoldingCSV(workspace.dictionaries / Path("lexique/folding.csv"))
-        foldings_csv.load()
-        onsets = set(self.fold_onsets(onsets, foldings_csv))
+        self.load_folding()
+        onsets = set(self.fold_onsets(onsets, self.folding_csv))
 
         # removing and adding custom onsets
         with open(DATA_FOLDER / Path(f"onsets/{lang}/added.txt")) as added_onsets_file:
@@ -188,6 +217,9 @@ class LexiqueSetupTask(DictionarySetupTask):
         vowels_path = workspace.dictionaries / Path("vowels.txt")
         logger.info(f"Copying vowels to {vowels_path}")
         copyfile(DATA_FOLDER / Path("vowels_fr.txt"), vowels_path)
+
+        # folding dictionary
+        self.fold_dictionary(workspace)
 
 
 class INSEESetupTask(DictionarySetupTask):
@@ -244,6 +276,8 @@ class CelexSetupTask(DictionarySetupTask):
         "dictionaries/celex/onsets.txt",  # used by wordseg as a trainset
     ]
     DICT_SUBDIR = Path("celex")
+    FOLDING_PATH = Path("foldings/en/celex.csv")
+
     ALL_PHONEMES = {'3:', '@', '@U', 'A:', 'A~:', 'D', 'E', 'I', 'I@', 'N', 'O:',
                     'OI', 'O~:', 'O', 'S', 'T', 'U', 'U@', '&', '&~:', '&~',
                     'V', 'Z', 'aI', 'aU', 'b', 'd', 'dZ', 'eI', 'f', 'g', 'h', 'i:',
@@ -338,6 +372,10 @@ class CelexSetupTask(DictionarySetupTask):
         logger.info(f"Copying vowels to {vowels_path}")
         copyfile(DATA_FOLDER / Path("vowels_en.txt"), vowels_path)
 
+        # folding the whole dict
+        self.load_folding()
+        self.fold_dictionary(workspace)
+
 
 class CMUSetupTask(DictionarySetupTask):
     dict_file = ""
@@ -363,8 +401,9 @@ class CMUSetupTask(DictionarySetupTask):
                     "syllabic": None  # no syllabic representation for CMU
                 })
 
-        lang = workspace.config["lang"]
-        self.copy_folding(workspace, DATA_FOLDER / Path(f"foldings/{lang}/cmu.csv"))
+        self.copy_folding(workspace)
+        self.load_folding()
+        self.fold_dictionary(workspace)
 
 
 class CMUFRSetupTask(CMUSetupTask):
@@ -374,6 +413,7 @@ class CMUFRSetupTask(CMUSetupTask):
     ]
     dict_file = "cmu_fr.txt"
     DICT_SUBDIR = Path("cmu_fr")
+    FOLDING_PATH = Path("foldings/fr/cmu.csv")
 
 
 class CMUENSetupTask(CMUSetupTask):
@@ -383,6 +423,7 @@ class CMUENSetupTask(CMUSetupTask):
     ]
     dict_file = "cmu_en.txt"
     DICT_SUBDIR = Path("cmu_en")
+    FOLDING_PATH = Path("foldings/en/cmu.csv")
 
 # NOTE: for foldings, store default foldings in the package's "data" folder,
 # but allow imports of custom foldings
