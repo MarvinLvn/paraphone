@@ -8,6 +8,7 @@ from typing import Set, Tuple, List, Dict
 import Levenshtein
 from tqdm import tqdm
 
+from paraphone.tasks.dictionaries import DictionaryCSV
 from paraphone.tasks.filters.base import FilteringTaskMixin, CandidatesPairCSV, WordPair, CorpusFinalFilteringTask
 from paraphone.tasks.phonemize import PhonemizedWordsCSV
 from paraphone.tasks.tokenize import TokenizedWordsCSV
@@ -147,9 +148,8 @@ class MostFrequentHomophoneFilterTask(FilteringTaskMixin):
 
 class WuggyHomophonesFilterTask(FilteringTaskMixin):
     """Filters out fake word whose phonetic form matches that of a real word."""
-    # TODO: based on dataset or on dictionary?
     requires = [
-        "phonemized/all.csv"
+        "dictionaries/*/dict_folded.csv"
     ]
     step_name = "wuggy-homophones"
 
@@ -161,10 +161,12 @@ class WuggyHomophonesFilterTask(FilteringTaskMixin):
         return word_pair.fake_word_pho not in self.all_words_phonemized
 
     def run(self, workspace: Workspace):
-        phonemized_words_csv = PhonemizedWordsCSV(
-            workspace.phonemized / Path("all.csv")
-        )
-        self.all_words_phonemized = {" ".join(word_pho) for _, word_pho in phonemized_words_csv}
+        self.all_words_phonemized = {}
+        for dict_filepath in workspace.dictionaries.glob("**/dict_folded.csv"):
+            dict_csv = DictionaryCSV(dict_filepath)
+            self.all_words_phonemized.update({
+                " ".join(pho) for _, pho, _ in dict_csv
+            })
 
         self.filter(workspace)
 

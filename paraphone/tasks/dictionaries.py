@@ -10,7 +10,7 @@ from sortedcontainers import SortedDict
 from tqdm import tqdm
 
 from .base import BaseTask
-from ..utils import DICTIONARIES_FOLDER, logger, DATA_FOLDER, Phoneme, Syllable, count_lines
+from ..utils import DICTIONARIES_FOLDER, logger, DATA_FOLDER, Phoneme, Syllable, count_lines, fmt_syllabic
 from ..workspace import Workspace, WorkspaceCSV
 
 
@@ -110,6 +110,8 @@ class DictionarySetupTask(BaseTask):
                 except ValueError as err:
                     logger.error(f"Error in phonemize/fold for word {word}: {err}")
                     continue
+                if syllabic is not None:
+                    syllabic = fmt_syllabic(syllabic)
                 csv_writer.writerow({
                     "word": word,
                     "phonetic": " ".join(folded),
@@ -356,7 +358,7 @@ class CelexSetupTask(DictionarySetupTask):
                     "syllabic": None})
 
         # copying and loading foldings
-        self.copy_folding(workspace, DATA_FOLDER / Path(f"foldings/en/celex.csv"))
+        self.copy_folding(workspace)
         foldings_csv = FoldingCSV(workspace.dictionaries / Path("celex/folding.csv"))
         foldings_csv.load()
         onsets = set(self.fold_onsets(onsets, foldings_csv))

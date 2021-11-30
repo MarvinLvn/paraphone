@@ -73,3 +73,6 @@ def null_logger():
 
 def parse_syllabic(syllabic_form: str) -> List[Syllable]:
     return [syllable.split(" ") for syllable in syllabic_form.split("-")]
+
+def fmt_syllabic(syllables: List[Syllable]) -> str:
+    return "-".join(" ".join(pho) for pho in syllables)
