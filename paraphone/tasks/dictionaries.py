@@ -127,6 +127,29 @@ class DictionarySetupTask(BaseTask):
         dict_dir = workspace.dictionaries / self.DICT_SUBDIR
         copyfile(DATA_FOLDER / self.FOLDING_PATH, dict_dir / Path("folding.csv"))
 
+    def compute_onsets(self, workspace: Workspace):
+        dict_dir = workspace.dictionaries / self.DICT_SUBDIR
+        dict_folded_csv = DictionaryCSV(dict_dir / Path("dict_folded.csv"))
+        vowels_path = workspace.dictionaries / Path("vowels.txt")
+        with open(vowels_path) as vowels_file:
+            vowels = set(vowels_file.read().strip().split())
+
+        onsets: Set[Tuple[str, ...]] = set()
+        logger.info(f"Finding onsets for {dict_folded_csv}")
+        for _, phonemes, _ in tqdm(dict_folded_csv, total=dict_folded_csv.lines_count):
+            curr_onset = []
+            for pho in phonemes:
+                if pho in vowels:
+                    break
+                else:
+                    curr_onset.append(pho)
+            if curr_onset:
+                onsets.add(tuple(curr_onset))
+
+        with open(dict_dir / Path("onsets.txt"), "w") as onsets_file:
+            for onset in onsets:
+                onsets_file.write(" ".join(onset) + "\n")
+
 
 class PhonemizerSetupTask(DictionarySetupTask):
     creates = DictionarySetupTask.creates + [
@@ -155,24 +178,6 @@ class LexiqueSetupTask(DictionarySetupTask):
     DICT_SUBDIR: Path = Path("lexique/")
     FOLDING_PATH = Path("foldings/fr/lexique.csv")
 
-    VOWELS = {"a", "i", "y", "u", "o", "O", "E", "°", "2", "9", "5", "1",
-              "@", "§", "3"}
-    CONSONANTS = {"p", "b", "t", "d", "k", "g", "f", "v", "s", "z", "S",
-                  "Z", "m", "n", "N", "l", "R", "x", "G", "j", "8", "w"}
-    ONSET_RE = re.compile(f'[{"".join(CONSONANTS)}]+')
-
-    def find_onsets(self, syllabic_form: str) -> Iterable[str]:
-        syllables = syllabic_form.split("-")
-        for syllable in syllables:
-            onset_match = self.ONSET_RE.match(syllable)
-            if onset_match is not None:
-                yield onset_match[0]
-            break  # WARNING: added to use just beginning of word as onset
-
-    def fold_onsets(self, onsets: Set[str], folding_csv: FoldingCSV):
-        for onset in onsets:
-            yield " ".join(folding_csv.fold(list(onset)))
-
     def run(self, workspace: Workspace):
         dict_csv = self.setup_dict_csv(workspace)
         # reading the csv and extracting only the columns of interest
@@ -181,7 +186,6 @@ class LexiqueSetupTask(DictionarySetupTask):
         lexique_df = pd.read_csv(lexique_path, sep="\t")
         lexique_df = lexique_df[["ortho", "phon", "syll"]]
 
-        onsets: Set[str] = set()
         with dict_csv.dict_writer as dict_writer:
             dict_writer.writeheader()
             for _, row in tqdm(lexique_df.iterrows(), total=len(lexique_df)):
@@ -191,29 +195,7 @@ class LexiqueSetupTask(DictionarySetupTask):
                 dict_writer.writerow(
                     {"word": word, "phonetic": phonetic, "syllabic": syllabic}
                 )
-                onsets.update(set(self.find_onsets(row["syll"])))
 
-        # copying and loading foldings
-        lang = workspace.config["lang"]
-        self.load_folding()
-        onsets = set(self.fold_onsets(onsets, self.folding_csv))
-
-        # removing and adding custom onsets
-        with open(DATA_FOLDER / Path(f"onsets/{lang}/added.txt")) as added_onsets_file:
-            added_onsets = set(added_onsets_file.read().split("\n"))
-            logger.debug(f"Added onsets: {added_onsets}")
-            onsets.update(added_onsets)
-        with open(DATA_FOLDER / Path(f"onsets/{lang}/removed.txt")) as removed_onsets_file:
-            removed_onsets = set(removed_onsets_file.read().split("\n"))
-            logger.debug(f"Removed onsets : {removed_onsets}")
-            onsets = onsets - removed_onsets
-
-        # saving onsets
-        onsets_filepath = dict_csv.file_path.parent / Path("onsets.txt")
-        logger.info(f"Saving onsets for lexique to {onsets_filepath}")
-        with open(onsets_filepath, "w") as onsets_file:
-            for onset in onsets:
-                onsets_file.write(onset + "\n")
 
         # copying vowels
         vowels_path = workspace.dictionaries / Path("vowels.txt")
@@ -221,7 +203,11 @@ class LexiqueSetupTask(DictionarySetupTask):
         copyfile(DATA_FOLDER / Path("vowels_fr.txt"), vowels_path)
 
         # folding dictionary
+        self.load_folding()
         self.fold_dictionary(workspace)
+
+        # computing onsets
+        self.compute_onsets(workspace)
 
 
 class INSEESetupTask(DictionarySetupTask):
@@ -301,19 +287,6 @@ class CelexSetupTask(DictionarySetupTask):
             folding_pho_len[len(pho)].add(pho)
         self.folding_pho_len = SortedDict(folding_pho_len.items())
 
-    def find_onset(self, phonemes: List[str]) -> List[str]:
-        onset = []
-        for pho in phonemes:
-            if pho in self.CONSONANTS:
-                onset.append(pho)
-            else:
-                break
-        return onset if onset else None
-
-    def fold_onsets(self, onsets: Set[Tuple[str]], folding_csv: FoldingCSV):
-        for onset in onsets:
-            yield " ".join(folding_csv.fold(list(onset)))
-
     def parse_phonemes(self, phonemic_form: str) -> List[str]:
         input_phonemes = str(phonemic_form)
         parsed_phonemes = []
@@ -349,25 +322,11 @@ class CelexSetupTask(DictionarySetupTask):
                 celex_syllabic_form = row[8].replace(",", "")
                 re_match = clx_phon_re.findall(celex_syllabic_form)
                 phonemes = self.parse_phonemes("".join(list(re_match)))
-                onset = self.find_onset(phonemes)
-                if onset is not None:
-                    onsets.add(tuple(self.find_onset(phonemes)))
+
                 dict_writer.writerow({
                     "word": row[1],
                     "phonetic": " ".join(phonemes),
                     "syllabic": None})
-
-        # copying and loading foldings
-        self.copy_folding(workspace)
-        foldings_csv = FoldingCSV(workspace.dictionaries / Path("celex/folding.csv"))
-        foldings_csv.load()
-        onsets = set(self.fold_onsets(onsets, foldings_csv))
-
-        onsets_path = workspace.dictionaries / Path("celex/onsets.txt")
-        logger.info(f"Writing onsets file to {onsets_path}")
-        with open(onsets_path, "w") as onsets_file:
-            for onset in onsets:
-                onsets_file.write(" ".join(onset) + "\n")
 
         # copying vowels
         vowels_path = workspace.dictionaries / Path("vowels.txt")
@@ -378,10 +337,14 @@ class CelexSetupTask(DictionarySetupTask):
         self.load_folding()
         self.fold_dictionary(workspace)
 
+        # computing onsets
+        self.compute_onsets(workspace)
+
 
 class CMUSetupTask(DictionarySetupTask):
     dict_file = ""
     secondary_word_re = re.compile(r"\([0-9]+\)$")
+    remove_comments_re = re.compile(r" *#.*")
 
     def run(self, workspace: Workspace):
         dict_csv = self.setup_dict_csv(workspace)
@@ -392,6 +355,7 @@ class CMUSetupTask(DictionarySetupTask):
             dict_writer.writeheader()
             for line in tqdm(dict_txt, desc="CMU", total=lines_count):
                 line = line.strip("-")
+                line = self.remove_comments_re.sub("", line)
                 word, *phonemes = line.strip().split(" ")
                 # if word is of the type "read(2)" (and thus a secondary
                 # pronunciation), ignore

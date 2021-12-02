@@ -193,6 +193,6 @@ class PhonemizeEnglishTask(PhonemizeTask):
                 + PhonemizerWrapper.requires)
 
     def load_phonemizers(self, workspace: Workspace) -> List[BasePhonemizer]:
-        return [CMUFrenchPhonemizer(workspace),
+        return [CMUEnglishPhonemizer(workspace),
                 CelexPhonemizer(workspace),
                 PhonemizerWrapper(workspace, lang="en")]
