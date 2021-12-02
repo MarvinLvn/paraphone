@@ -24,11 +24,14 @@ from ..utils import null_logger
 class UnknownSymbolError(RuntimeError):
     pass
 
+
 class NoVowelError(RuntimeError):
     pass
 
+
 class NoOnsetError(RuntimeError):
     pass
+
 
 class Syllabifier:
     """Syllabify a text given in phonological or orthographic form
@@ -71,7 +74,7 @@ class Syllabifier:
         if not isinstance(onsets, list) or not len(onsets):
             raise ValueError('unvalid or empty onsets list')
 
-        # concatenation of all chars in onsets and vowels (usefull to
+        # concatenation of all chars in onsets and vowels (useful to
         # detect any phone token during syllabification)
         self.symbols: Set[str] = set(self.vowels)
         for onset in self.onsets:

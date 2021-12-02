@@ -149,7 +149,8 @@ class MostFrequentHomophoneFilterTask(FilteringTaskMixin):
 class WuggyHomophonesFilterTask(FilteringTaskMixin):
     """Filters out fake word whose phonetic form matches that of a real word."""
     requires = [
-        "dictionaries/*/dict_folded.csv"
+        "dictionaries/*/dict_folded.csv",
+        "phonemized/all.csv"
     ]
     step_name = "wuggy-homophones"
 
@@ -167,6 +168,10 @@ class WuggyHomophonesFilterTask(FilteringTaskMixin):
             self.all_words_phonemized.update({
                 " ".join(pho) for _, pho, _ in dict_csv
             })
+        phonemized_words_csv = PhonemizedWordsCSV(workspace.phonemized / Path("all.csv"))
+        self.all_words_phonemized.update({
+            " ".join(pho) for _, pho in phonemized_words_csv
+        })
 
         self.filter(workspace)
 

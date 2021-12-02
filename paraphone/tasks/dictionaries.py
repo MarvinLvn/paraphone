@@ -37,7 +37,7 @@ FoldingDict = Dict[Tuple[str], Tuple[str]]
 
 class FoldingCSV(WorkspaceCSV):
     folding_dict: FoldingDict
-    folding_pho_len: Dict[int, Set[Tuple[str]]]
+    folding_pho_len: List[Tuple[int, Set[Tuple[str]]]]
 
     def __init__(self, file_path: Path):
         super().__init__(file_path, separator=",", header=None)
@@ -59,17 +59,18 @@ class FoldingCSV(WorkspaceCSV):
         folding_pho_len: DefaultDict[int, Set[Tuple[str]]] = defaultdict(set)
         for pho in self.folding_dict:
             folding_pho_len[len(pho)].add(pho)
-        self.folding_pho_len = SortedDict(folding_pho_len.items())
+        self.folding_pho_len = sorted(folding_pho_len.items(), # noqa
+                                      key=lambda x: x[0],
+                                      reverse=True)
 
     def fold(self, phones: List[str]) -> List[str]:
         # TODO comment this: it's a vile piece of code
-        # TODO: move this function to utils.py, as it's going to be needed elsewhere
         word_phones = list(phones)  # making a copy of the list
         output_phones = []
         while word_phones:
             found_fold = False
             # checking longer folding candidates first
-            for pho_len, foldings_list in self.folding_pho_len.items():
+            for pho_len, foldings_list in self.folding_pho_len:
                 candidates = tuple(word_phones[:pho_len])
                 for folding_phone in foldings_list:
                     if candidates == folding_phone:
@@ -135,8 +136,10 @@ class DictionarySetupTask(BaseTask):
             vowels = set(vowels_file.read().strip().split())
 
         onsets: Set[Tuple[str, ...]] = set()
+        consonants: Set[str] = set()
         logger.info(f"Finding onsets for {dict_folded_csv}")
         for _, phonemes, _ in tqdm(dict_folded_csv, total=dict_folded_csv.lines_count):
+            consonants.update({pho for pho in phonemes if pho not in vowels})
             curr_onset = []
             for pho in phonemes:
                 if pho in vowels:
@@ -145,6 +148,10 @@ class DictionarySetupTask(BaseTask):
                     curr_onset.append(pho)
             if curr_onset:
                 onsets.add(tuple(curr_onset))
+
+        # all consonants are potential onsets
+        for pho in consonants:
+            onsets.add((pho,))
 
         with open(dict_dir / Path("onsets.txt"), "w") as onsets_file:
             for onset in onsets:
