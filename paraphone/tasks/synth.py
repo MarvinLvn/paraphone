@@ -70,6 +70,14 @@ class GoogleSpeakSynthesizer:
         )
         return response.audio_content
 
+    async def synth_text(self, text: str) -> bytes:
+        response = await self.client.synthesize_speech(
+            input=texttospeech.SynthesisInput(text=text),
+            voice=self.voice,
+            audio_config=self.audio_config
+        )
+        return response.audio_content
+
 
 class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
     requires = [
