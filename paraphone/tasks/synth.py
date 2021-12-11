@@ -2,7 +2,7 @@ import asyncio
 import logging
 from asyncio import Semaphore
 from pathlib import Path
-from typing import Optional, Iterable, List, Tuple, Awaitable, Dict
+from typing import Optional, Iterable, List, Tuple, Awaitable, Dict, Set
 
 from google.cloud import texttospeech
 from tqdm import tqdm
@@ -47,10 +47,13 @@ class GoogleSpeakSynthesizer:
         )
         self.client = texttospeech.TextToSpeechAsyncClient.from_service_account_file(str(credentials_path))
 
-    def estimate_price(self, words_pho: Iterable[str]):
-        ssml_template_len = len(self.SSML_TEMPLATE.format(phonemes=""))
-        all_words_length = sum(len(w) for w in words_pho)
-        return (ssml_template_len + all_words_length) * self.WAVENET_VOICE_PRICE_PER_CHAR
+    def estimate_price(self, words_pho: Iterable[str], for_pho: bool = False):
+        if for_pho:
+            ssml_template_len = len(self.SSML_TEMPLATE.format(phonemes=""))
+            all_words_length = sum(len(w) for w in words_pho)
+            return (ssml_template_len + all_words_length) * self.WAVENET_VOICE_PRICE_PER_CHAR
+        else:
+            return sum(len(word) for word in words_pho) * self.WAVENET_VOICE_PRICE_PER_CHAR
 
     async def synth_phonemes(self, phonemes: List[str]) -> Tuple[bytes, List[str]]:
         ssml = self.SSML_TEMPLATE.format(phonemes="".join(phonemes))
@@ -78,6 +81,14 @@ class GoogleSpeakSynthesizer:
         )
         return response.audio_content
 
+    async def synth_word(self, word: str) -> Tuple[bytes, str]:
+        response = await self.client.synthesize_speech(
+            input=texttospeech.SynthesisInput(text=word),
+            voice=self.voice,
+            audio_config=self.audio_config
+        )
+        return response.audio_content, word
+
 
 class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
     requires = [
@@ -97,14 +108,23 @@ class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
         async with self.semaphore:
             return await task
 
-    async def run_synth(self, words_pho: List[str],
-                        synthesizer: GoogleSpeakSynthesizer,
-                        output_folder: Path):
+    async def run_pho_synth(self, words_pho: List[str],
+                            synthesizer: GoogleSpeakSynthesizer,
+                            output_folder: Path):
         synth_tasks = [self.tasks_limiter(synthesizer.synth_phonemes(word_pho.split(" ")))
                        for word_pho in words_pho]
         for synth_task in async_tqdm.as_completed(synth_tasks):
             audio_bytes, phonemes = await synth_task
             self.store_output(audio_bytes, " ".join(phonemes), output_folder)
+
+    async def run_word_synth(self, words: List[str],
+                             synthesizer: GoogleSpeakSynthesizer,
+                             output_folder: Path):
+        synth_tasks = [self.tasks_limiter(synthesizer.synth_word(word))
+                       for word in words]
+        for synth_task in async_tqdm.as_completed(synth_tasks):
+            audio_bytes, word = await synth_task
+            self.store_output(audio_bytes, word, output_folder)
 
 
 class TestSynthesisTask(BaseSpeechSynthesisTask):
@@ -147,37 +167,35 @@ class TestSynthesisTask(BaseSpeechSynthesisTask):
         synth = GoogleSpeakSynthesizer(lang="fr", voice_id=VOICES["fr"][0],
                                        credentials_path=credentials_path)
 
-        # self.run_synth(list(self.test_words.keys()),
-        #                synth,
-        #                test_audio_folder)
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.run_synth(list(self.test_words.keys()),
-                                               synth,
-                                               test_audio_folder))
+        loop.run_until_complete(self.run_pho_synth(list(self.test_words.keys()),
+                                                   synth,
+                                                   test_audio_folder))
 
 
-class CorporaSynthesisTask(BaseSpeechSynthesisTask):
+class BaseCorporaSynthesisTask(BaseSpeechSynthesisTask):
     creates = [
-        "synth/audio/*.mp3"
+        "synth/audio/*/*.mp3"
     ]
+    SYNTH_SUBFOLDER: str
+    FOR_PHONETIC: bool
 
-    @staticmethod
-    def get_filename(phonemic_form: str):
-        return f"{phonemic_form.replace(' ', '_')}.ogg"
-
-    def store_output(self, audio_bytes: bytes, phonemic_form: str, folder: Path):
-        file_name = phonemic_form.replace(" ", "_")
-        with open(folder / Path(self.get_filename(phonemic_form)), "wb") as file:
-            file.write(audio_bytes)
-
-    def __init__(self, no_confirmation: bool = False, for_corpus: Optional[int] = None):
+    def __init__(self, no_confirmation: bool = False,
+                 for_corpus: Optional[int] = None):
         super().__init__()
         self.for_corpus = for_corpus
         self.no_confirmation = no_confirmation
 
-    def run(self, workspace: Workspace):
-        credentials_path = workspace.synth / Path("credentials.json")
-        corpora = self.find_corpora(workspace.corpora / Path("wuggy_pairs/"))
+    @staticmethod
+    def get_filename(phonemic_form: str):
+        raise NotImplemented()
+
+    def store_output(self, audio_bytes: bytes, word: str, folder: Path):
+        with open(folder / Path(self.get_filename(word)), "wb") as file:
+            file.write(audio_bytes)
+
+    def find_corpora(self, workspace: Workspace) -> List[Tuple[int, Path]]:
+        corpora = super().find_corpora(workspace.corpora / Path("wuggy_pairs/"))
         if self.for_corpus is not None:
             for corpus_id, corpus_path in corpora:
                 if corpus_id == self.for_corpus:
@@ -186,25 +204,38 @@ class CorporaSynthesisTask(BaseSpeechSynthesisTask):
             else:
                 raise ValueError(f"Couldn't find data for corpus {self.for_corpus}")
 
-        logger.info("Parsing corpus words...")
-        all_words = set()
-        for corpus_id, corpus_path in tqdm(corpora):
-            for _, word_pho, non_word_pho in CandidatesPairCSV(corpus_path):
-                all_words.update({word_pho, non_word_pho})
-        logger.info(f"Found {len(all_words)} unique words and non-words.")
+        return corpora
 
+    def init_synthesizers(self, workspace: Workspace) -> List[GoogleSpeakSynthesizer]:
+        credentials_path = workspace.synth / Path("credentials.json")
         lang = workspace.config["lang"]
         voices = VOICES[lang]
         logger.info(f"Using voices {', '.join(voices)} for synthesis.")
-        synthesizers = [GoogleSpeakSynthesizer(lang, voice_id, credentials_path)
-                        for voice_id in voices]
+        return [GoogleSpeakSynthesizer(lang, voice_id, credentials_path)
+                for voice_id in voices]
 
+    def get_words(self, corpus_path: Path) -> Set[str]:
+        raise NotImplemented()
+
+    def run(self, workspace: Workspace):
+        corpora = self.find_corpora(workspace)
+        synth_folder = workspace.synth / Path(f"audio/{self.SYNTH_SUBFOLDER}/")
+
+        logger.info("Parsing corpus words...")
+        # either actual words or phonetic forms
+        all_words = set()
+        for corpus_id, corpus_path in tqdm(corpora):
+            all_words.update(self.get_words(corpus_path))
+
+        logger.info(f"Found {len(all_words)} words to synthesize")
+
+        synthesizers = self.init_synthesizers(workspace)
         synth_words = {
             synth: list(all_words) for synth in synthesizers
         }
         # filtering words that might already have been generated
         for synth, words in list(synth_words.items()):
-            audio_folder = workspace.synth / Path(f"audio/{synth.voice_id}/")
+            audio_folder = synth_folder / Path(synth.voice_id)
             if not audio_folder.exists():
                 continue
             elif not list(audio_folder.iterdir()):
@@ -216,7 +247,8 @@ class CorporaSynthesisTask(BaseSpeechSynthesisTask):
             logging.info(f"{len(words) - len(synth_words[synth])} words "
                          f"already exist for {synth.voice_id} and won't be synthesized")
 
-        total_cost = sum(synth.estimate_price(words) for synth, words in synth_words.items())
+        total_cost = sum(synth.estimate_price(words, for_pho=self.FOR_PHONETIC)
+                         for synth, words in synth_words.items())
         logger.info(f"Estimated cost is {total_cost}$")
         if not self.no_confirmation:
             if input("Do you want to proceed?\n[Y/n]").lower() != "y":
@@ -227,8 +259,41 @@ class CorporaSynthesisTask(BaseSpeechSynthesisTask):
         loop = asyncio.get_event_loop()
         for synth, words in synth_words.items():
             logger.info(f"For synth with voice id {synth.voice_id}")
-            audio_folder = workspace.synth / Path(f"audio/{synth.voice_id}/")
+            audio_folder = synth_folder / Path(synth.voice_id)
             audio_folder.mkdir(parents=True, exist_ok=True)
-            loop.run_until_complete(self.run_synth(words,
-                                                   synth,
-                                                   audio_folder))
+            if self.FOR_PHONETIC:
+                async_tasks = self.run_pho_synth(words,
+                                                 synth,
+                                                 audio_folder)
+            else:
+                async_tasks = self.run_word_synth(words,
+                                                  synth,
+                                                  audio_folder)
+            loop.run_until_complete(async_tasks)
+
+
+class CorporaPhoneticSynthesisTask(BaseCorporaSynthesisTask):
+    SYNTH_SUBFOLDER = "phonetic"
+    FOR_PHONETIC = True
+
+    @staticmethod
+    def get_filename(phonemic_form: str):
+        return f"{phonemic_form.replace(' ', '_')}.ogg"
+
+    def get_words(self, corpus_path: Path) -> Set[str]:
+        phonetic_forms = set()
+        for _, word_pho, non_word_pho in CandidatesPairCSV(corpus_path):
+            phonetic_forms.update({word_pho, non_word_pho})
+        return phonetic_forms
+
+
+class CorporaTextSynthesisTask(BaseCorporaSynthesisTask):
+    SYNTH_SUBFOLDER = "text"
+    FOR_PHONETIC = False
+
+    @staticmethod
+    def get_filename(word: str):
+        return f"{word}.ogg"
+
+    def get_words(self, corpus_path: Path) -> Set[str]:
+        return {word for word, _, _ in CandidatesPairCSV(corpus_path)}

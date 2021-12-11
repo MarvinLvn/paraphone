@@ -1,8 +1,7 @@
-import logging
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Set
+from typing import Set, List
 
 from tqdm import tqdm
 
@@ -42,12 +41,19 @@ class CorporaCreationTask(BaseTask):
 
         return group_words
 
+    @staticmethod
+    def sort_families_folders(folders: List[Path]) -> List[Path]:
+        return sorted(folders, key=lambda x: int(x.stem.split("_")[1]),
+                      reverse=True)
+
     def run(self, workspace: Workspace):
         workspace.corpora.mkdir(parents=True, exist_ok=True)
 
         logger.info("Building families words lists...")
         families_folder = workspace.datasets / Path("families/")
-        pbar = tqdm(list(families_folder.iterdir()))
+        # Families *have* to be sorted
+        pbar = tqdm(self.sort_families_folders(families_folder.iterdir()))
+        previous_group_words: Set[str] = set()
         for family_folder in pbar:
             family_folder: Path
             assert family_folder.is_dir()
@@ -55,7 +61,8 @@ class CorporaCreationTask(BaseTask):
             assert len(list(family_folder.iterdir())) == family_id
 
             family_words_dict = None
-            for group_filepath in family_folder.iterdir():
+            groups_paths = self.sort_families_folders(list(family_folder.iterdir()))
+            for group_filepath in groups_paths:
                 pbar.set_description(f"Family {family_id}: {group_filepath.name}")
 
                 assert group_filepath.is_file()
@@ -76,11 +83,25 @@ class CorporaCreationTask(BaseTask):
                         else:
                             del family_words_dict[word]
 
+            # removing words from "previous" family
+            len_before = len(family_words_dict)
+            for word in previous_group_words:
+                if word in family_words_dict:
+                    del family_words_dict[word]
+            previous_group_words.update(set(family_words_dict.keys()))
+
+            logger.debug(f"Removed {len_before - len(family_words_dict)} words "
+                         f"from smaller corpora in corpus {family_id}")
+
             logger.debug(f"Writing words list for family {family_id}")
             tokenized_corpora_folder = workspace.corpora / Path("tokenized/")
             tokenized_corpora_folder.mkdir(parents=True, exist_ok=True)
             family_words_csv = TokenizedWordsCSV(tokenized_corpora_folder /
                                                  Path(f"corpus_{family_id}.csv"))
+            # sorting dict by word count (decreasing)
+            family_words_dict = dict(sorted(family_words_dict.items(),
+                                            key=lambda item: item[1],
+                                            reverse=True))
             with family_words_csv.dict_writer as dict_writer:
                 dict_writer.writeheader()
                 for word, count in family_words_dict.items():

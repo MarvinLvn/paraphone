@@ -15,7 +15,7 @@ from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleS
 from ..tasks.phonemize import PhonemizeFrenchTask, PhonemizeEnglishTask
 from ..tasks.stats import CorporaNgramStatsTask
 from ..tasks.syllabify import SyllabifyFrenchTask, SyllabifyEnglishTask
-from ..tasks.synth import CorporaSynthesisTask, TestSynthesisTask
+from ..tasks.synth import CorporaPhoneticSynthesisTask, TestSynthesisTask
 from ..tasks.tokenize import TokenizeFrenchTask, TokenizeEnglishTask
 from ..tasks.workspace_init import WorkspaceInitTask
 from ..tasks.wuggy_gen import WuggyPrepareTask, WuggyGenerationFrTask, WuggyGenerationEnTask
@@ -234,7 +234,7 @@ class SynthCorpusCommand(BaseCommand):
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return CorporaSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id)
+        return CorporaPhoneticSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id)
 
 
 class SynthAllCommand(BaseCommand):
@@ -248,7 +248,7 @@ class SynthAllCommand(BaseCommand):
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return CorporaSynthesisTask(no_confirmation=args.yes)
+        return CorporaPhoneticSynthesisTask(no_confirmation=args.yes)
 
 
 class SynthCommand(CommandGroup):

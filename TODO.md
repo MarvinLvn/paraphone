@@ -47,4 +47,8 @@
     - affair AH0 F EH1 R
     - pot: P AA1 T
     - adventure: AE0 D V EH1 N CH ER0
-- synth chien, lapin, escargot, pomme, poire en ortho + phonetic dans des fichiers indépendants
+- DONE: synth chien, lapin, escargot, pomme, poire en ortho + phonetic dans des fichiers indépendants
+- Checker la construction des familles (exclusion des mots)
+- générer pour corpus 64 avec : 
+  - mot réels en forme graph et phonétique
+  - mot wuggy en forme phonétique
