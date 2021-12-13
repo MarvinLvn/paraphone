@@ -15,7 +15,7 @@ from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleS
 from ..tasks.phonemize import PhonemizeFrenchTask, PhonemizeEnglishTask
 from ..tasks.stats import CorporaNgramStatsTask
 from ..tasks.syllabify import SyllabifyFrenchTask, SyllabifyEnglishTask
-from ..tasks.synth import CorporaPhoneticSynthesisTask, TestSynthesisTask
+from ..tasks.synth import CorporaPhoneticSynthesisTask, TestSynthesisTask, CorporaTextSynthesisTask
 from ..tasks.tokenize import TokenizeFrenchTask, TokenizeEnglishTask
 from ..tasks.workspace_init import WorkspaceInitTask
 from ..tasks.wuggy_gen import WuggyPrepareTask, WuggyGenerationFrTask, WuggyGenerationEnTask
@@ -229,12 +229,23 @@ class SynthCorpusCommand(BaseCommand):
     @classmethod
     def init_parser(cls, parser: ArgumentParser):
         parser.add_argument("corpus_id", type=int, help="Corpus id for which to do synthesis")
+        only_for_group = parser.add_mutually_exclusive_group()
+        only_for_group.add_argument("--only_text", action="store_true")
+        only_for_group.add_argument("--only_phonetic", action="store_true")
         parser.add_argument("-y", "--yes", action="store_true",
                             help="Don't ask for confirmation before synthesis")
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return CorporaPhoneticSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id)
+        if args.only_phonetic:
+            return CorporaPhoneticSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id)
+        elif args.only_text:
+            return CorporaTextSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id)
+        else:
+            return [
+                CorporaTextSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id),
+                CorporaPhoneticSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id)
+            ]
 
 
 class SynthAllCommand(BaseCommand):
@@ -248,7 +259,8 @@ class SynthAllCommand(BaseCommand):
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return CorporaPhoneticSynthesisTask(no_confirmation=args.yes)
+        return [CorporaTextSynthesisTask(no_confirmation=args.yes),
+                CorporaPhoneticSynthesisTask(no_confirmation=args.yes)]
 
 
 class SynthCommand(CommandGroup):
@@ -383,6 +395,15 @@ class FilterHomophonesCommand(BaseCommand):
         return MostFrequentHomophoneFilterTask()
 
 
+class FilterWuggyHomophonesCommand(BaseCommand):
+    COMMAND = "wuggy-homophones"
+    DESCRIPTION = "Filter out wuggy candidates that are homophones of real words"
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return WuggyHomophonesFilterTask()
+
+
 class FilterNgramCommand(BaseCommand):
     COMMAND = "ngram"
     DESCRIPTION = "Filter out fake words candidates using Ngrams statistics"
@@ -418,6 +439,7 @@ class FilterCommand(CommandGroup):
     SUBCOMMANDS = [FilterNgramCommand,
                    FilterRandomCommand, FilterInitCommand, FilterEqualsCommand,
                    FilterRandomPairsCommand, FilterLevenshteinCommand,
+                   FilterWuggyHomophonesCommand,
                    FilterHomophonesCommand, FullDefaultFilteringPipelineCommand]
 
 

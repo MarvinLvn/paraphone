@@ -30,7 +30,7 @@ class InitFilteringTask(FilteringTaskMixin):
     def run(self, workspace: Workspace):
         steps_folder = workspace.candidates_filtering / Path("steps")
         # cleaning up folder in case of re-initing
-        shutil.rmtree(steps_folder)
+        shutil.rmtree(steps_folder, ignore_errors=True)
         steps_folder.mkdir(parents=True, exist_ok=True)
 
         wuggy_candidates_csv = FakeWordsCandidatesCSV(workspace.wuggy / Path("candidates.csv"))
@@ -162,7 +162,7 @@ class WuggyHomophonesFilterTask(FilteringTaskMixin):
         return word_pair.fake_word_pho not in self.all_words_phonemized
 
     def run(self, workspace: Workspace):
-        self.all_words_phonemized = {}
+        self.all_words_phonemized = set()
         for dict_filepath in workspace.dictionaries.glob("**/dict_folded.csv"):
             dict_csv = DictionaryCSV(dict_filepath)
             self.all_words_phonemized.update({

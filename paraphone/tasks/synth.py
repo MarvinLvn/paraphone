@@ -1,10 +1,11 @@
 import asyncio
-import logging
 from asyncio import Semaphore
 from pathlib import Path
 from typing import Optional, Iterable, List, Tuple, Awaitable, Dict, Set
 
+from aiolimiter import AsyncLimiter
 from google.cloud import texttospeech
+from google.cloud.texttospeech_v1 import SynthesisInput
 from tqdm import tqdm
 from tqdm.asyncio import tqdm as async_tqdm
 
@@ -33,6 +34,8 @@ class GoogleSpeakSynthesizer:
     SSML_TEMPLATE = """<speak><phoneme alphabet="ipa" ph="{phonemes}"></phoneme></speak>"""
     STANDARD_VOICE_PRICE_PER_CHAR = 0.000004
     WAVENET_VOICE_PRICE_PER_CHAR = 0.000016
+    NUMBER_RETRIES = 4
+    RETRY_WAIT_TIME = 0.5
 
     def __init__(self, lang: str, voice_id: str, credentials_path: Path):
         self.lang = "en-US" if lang == "en" else "fr-FR"
@@ -55,39 +58,39 @@ class GoogleSpeakSynthesizer:
         else:
             return sum(len(word) for word in words_pho) * self.WAVENET_VOICE_PRICE_PER_CHAR
 
-    async def synth_phonemes(self, phonemes: List[str]) -> Tuple[bytes, List[str]]:
-        ssml = self.SSML_TEMPLATE.format(phonemes="".join(phonemes))
-        synthesis_input = texttospeech.SynthesisInput(ssml=ssml)
-        response = await self.client.synthesize_speech(
-            input=synthesis_input,
-            voice=self.voice,
-            audio_config=self.audio_config
-        )
-        return response.audio_content, phonemes
+    async def _synth_worker(self, synth_input: SynthesisInput) -> Optional[bytes]:
+        for _ in range(self.NUMBER_RETRIES):
+            try:
+                response = await self.client.synthesize_speech(
+                    input=synth_input,
+                    voice=self.voice,
+                    audio_config=self.audio_config
+                )
+            except Exception:
+                logger.debug(f"Error in synth, retrying in {self.RETRY_WAIT_TIME}")
+                await asyncio.sleep(self.RETRY_WAIT_TIME)
+                continue
+            else:
+                return response.audio_content
+        else:
+            return None
 
     async def synth_ssml(self, ssml: str) -> bytes:
-        response = await self.client.synthesize_speech(
-            input=texttospeech.SynthesisInput(ssml=ssml),
-            voice=self.voice,
-            audio_config=self.audio_config
-        )
-        return response.audio_content
+        response = await self._synth_worker(texttospeech.SynthesisInput(ssml=ssml))
+        return response
+
+    async def synth_phonemes(self, phonemes: List[str]) -> Tuple[bytes, List[str]]:
+        ssml = self.SSML_TEMPLATE.format(phonemes="".join(phonemes))
+        response = await self.synth_ssml(ssml)
+        return response, phonemes
 
     async def synth_text(self, text: str) -> bytes:
-        response = await self.client.synthesize_speech(
-            input=texttospeech.SynthesisInput(text=text),
-            voice=self.voice,
-            audio_config=self.audio_config
-        )
-        return response.audio_content
+        response = await self._synth_worker(texttospeech.SynthesisInput(text=text))
+        return response
 
     async def synth_word(self, word: str) -> Tuple[bytes, str]:
-        response = await self.client.synthesize_speech(
-            input=texttospeech.SynthesisInput(text=word),
-            voice=self.voice,
-            audio_config=self.audio_config
-        )
-        return response.audio_content, word
+        response = await self.synth_text(word)
+        return response, word
 
 
 class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
@@ -95,18 +98,23 @@ class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
         "synth/credentials.json",
         "corpora/wuggy_pairs/*.csv"
     ]
-    MAX_CONCURRENT_CONNEXIONS = 10
+    MAX_REQUEST_PER_MINUTE = 500
+    MAX_REQUEST_PER_SECOND = 10
+    MAX_CONCURRENT_REQUEST = 10
 
     def __init__(self):
         super().__init__()
-        self.semaphore = Semaphore(self.MAX_CONCURRENT_CONNEXIONS)
+        # self.rate_limiter = AsyncLimiter(self.MAX_REQUEST_PER_MINUTE)
+        self.rate_limiter = AsyncLimiter(self.MAX_REQUEST_PER_SECOND, time_period=1)
+        self.semaphore = Semaphore(self.MAX_CONCURRENT_REQUEST)
 
     def store_output(self, audio_bytes: bytes, phonemic_form: str, folder: Path):
         raise NotImplemented()
 
     async def tasks_limiter(self, task: Awaitable[Tuple[bytes, List[str]]]):
-        async with self.semaphore:
-            return await task
+        async with self.rate_limiter:
+            async with self.semaphore:
+                return await task
 
     async def run_pho_synth(self, words_pho: List[str],
                             synthesizer: GoogleSpeakSynthesizer,
@@ -115,6 +123,9 @@ class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
                        for word_pho in words_pho]
         for synth_task in async_tqdm.as_completed(synth_tasks):
             audio_bytes, phonemes = await synth_task
+            if audio_bytes is None:
+                logger.warning(f"Got none bytes for {phonemes}, skipping")
+                continue
             self.store_output(audio_bytes, " ".join(phonemes), output_folder)
 
     async def run_word_synth(self, words: List[str],
@@ -124,6 +135,9 @@ class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
                        for word in words]
         for synth_task in async_tqdm.as_completed(synth_tasks):
             audio_bytes, word = await synth_task
+            if audio_bytes is None:
+                logger.warning(f"Got none bytes for {word}, skipping")
+                continue
             self.store_output(audio_bytes, word, output_folder)
 
 
@@ -244,8 +258,8 @@ class BaseCorporaSynthesisTask(BaseSpeechSynthesisTask):
                 word for word in words
                 if not (audio_folder / Path(self.get_filename(word))).exists()
             ]
-            logging.info(f"{len(words) - len(synth_words[synth])} words "
-                         f"already exist for {synth.voice_id} and won't be synthesized")
+            logger.info(f"{len(words) - len(synth_words[synth])} words "
+                        f"already exist for {synth.voice_id} and won't be synthesized")
 
         total_cost = sum(synth.estimate_price(words, for_pho=self.FOR_PHONETIC)
                          for synth, words in synth_words.items())
@@ -257,6 +271,7 @@ class BaseCorporaSynthesisTask(BaseSpeechSynthesisTask):
 
         logger.info("Starting synthesis...")
         loop = asyncio.get_event_loop()
+        async_tasks = []
         for synth, words in synth_words.items():
             logger.info(f"For synth with voice id {synth.voice_id}")
             audio_folder = synth_folder / Path(synth.voice_id)
