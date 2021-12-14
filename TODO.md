@@ -25,10 +25,10 @@
   - else, refold it into "nj" but while keeping "nj" as a unique phoneme
 - regarding word/fake words candidates, check the number of fake word per word before the balancing
 - check the same histograms, but _after_ the balancing step
-- fix the 8 + i -> devient le mu de huit (lexique org foldings)
+- DONE: fix the 8 + i -> devient le mu de huit (lexique org foldings)
 - DONE : fix the uy de CMU en mu (de huit)
-- fold the "un" onto "in"
-- Use start of words as foldings (not syllables) (lexique en fr, le celex en anglais)
+- DONE: fold the "un" onto "in"
+- DONE: Use start of words as foldings (not syllables) (lexique en fr, le celex en anglais)
 - CELEX:
   - {~: not present in celex ({~ either): DONE
   - N or n for nasals?: DONE
@@ -48,7 +48,7 @@
     - pot: P AA1 T
     - adventure: AE0 D V EH1 N CH ER0
 - DONE: synth chien, lapin, escargot, pomme, poire en ortho + phonetic dans des fichiers indépendants
-- Checker la construction des familles (exclusion des mots)
-- générer pour corpus 64 avec : 
+- DONE : Checker la construction des familles (exclusion des mots)
+- DONE: générer pour corpus 64 avec : 
   - mot réels en forme graph et phonétique
   - mot wuggy en forme phonétique

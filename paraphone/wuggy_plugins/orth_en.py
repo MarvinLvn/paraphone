@@ -1,20 +1,24 @@
 import re
 
-# TODO
-single_vowels = ["u",
-                 "ɛ̃",
-                 "e",
-                 "i",
-                 "o",
-                 "a",
+single_vowels = ["ə",
+                 "ʊ",
                  "ɛ",
-                 "ɔ̃",
-                 "ɑ̃",
-                 "o",
-                 "œ",
-                 "ø",
-                 "ə",
-                 "œ̃",
-                 "y", ]
+                 "iː",
+                 "ɔ",
+                 "ɪ",
+                 "aɪ",
+                 "ɑ",
+                 "æ",
+                 "oʊ",
+                 "eɪ",
+                 "iə",
+                 "aʊ",
+                 "ɑː",
+                 "uː",
+                 "ɜː",
+                 "ɔː",
+                 "ɔɪ",
+                 "ʌ"]
+
 nucleuspattern = '%s' % (single_vowels)
 oncpattern = re.compile('(.*?)(%s)(.*)' % nucleuspattern)

@@ -99,7 +99,7 @@ class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
         "corpora/wuggy_pairs/*.csv"
     ]
     MAX_REQUEST_PER_MINUTE = 500
-    MAX_REQUEST_PER_SECOND = 10
+    MAX_REQUEST_PER_SECOND = 12
     MAX_CONCURRENT_REQUEST = 10
 
     def __init__(self):
@@ -178,7 +178,8 @@ class TestSynthesisTask(BaseSpeechSynthesisTask):
         logger.info("Synthesizing test words...")
         test_audio_folder = workspace.synth / Path("tests/")
         test_audio_folder.mkdir(parents=True, exist_ok=True)
-        synth = GoogleSpeakSynthesizer(lang="fr", voice_id=VOICES["fr"][0],
+        lang = workspace.config["lang"]
+        synth = GoogleSpeakSynthesizer(lang=lang, voice_id=VOICES[lang][0],
                                        credentials_path=credentials_path)
 
         loop = asyncio.get_event_loop()
