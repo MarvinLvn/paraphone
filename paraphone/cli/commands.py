@@ -234,6 +234,8 @@ class SynthCorpusCommand(BaseCommand):
         only_for_group.add_argument("--only_phonetic", action="store_true")
         parser.add_argument("-y", "--yes", action="store_true",
                             help="Don't ask for confirmation before synthesis")
+        parser.add_argument("--synth_true_words", action="store_true",
+                            help="Synthesize the phonetic form of real words")
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
@@ -244,7 +246,8 @@ class SynthCorpusCommand(BaseCommand):
         else:
             return [
                 CorporaTextSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id),
-                CorporaPhoneticSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id)
+                CorporaPhoneticSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id,
+                                             synth_true_words=args.synth_true_words)
             ]
 
 
@@ -256,11 +259,14 @@ class SynthAllCommand(BaseCommand):
     def init_parser(cls, parser: ArgumentParser):
         parser.add_argument("-y", "--yes", action="store_true",
                             help="Don't ask for confirmation before synthesis")
+        parser.add_argument("--synth_true_words", action="store_true",
+                            help="Synthesize the phonetic form of real words")
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
         return [CorporaTextSynthesisTask(no_confirmation=args.yes),
-                CorporaPhoneticSynthesisTask(no_confirmation=args.yes)]
+                CorporaPhoneticSynthesisTask(no_confirmation=args.yes,
+                                             synth_true_words=args.synth_true_words)]
 
 
 class SynthCommand(CommandGroup):

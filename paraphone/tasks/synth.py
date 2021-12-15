@@ -272,7 +272,6 @@ class BaseCorporaSynthesisTask(BaseSpeechSynthesisTask):
 
         logger.info("Starting synthesis...")
         loop = asyncio.get_event_loop()
-        async_tasks = []
         for synth, words in synth_words.items():
             logger.info(f"For synth with voice id {synth.voice_id}")
             audio_folder = synth_folder / Path(synth.voice_id)
@@ -292,6 +291,12 @@ class CorporaPhoneticSynthesisTask(BaseCorporaSynthesisTask):
     SYNTH_SUBFOLDER = "phonetic"
     FOR_PHONETIC = True
 
+    def __init__(self, no_confirmation: bool = False,
+                 for_corpus: Optional[int] = None,
+                 synth_true_words: bool = False):
+        super().__init__(no_confirmation, for_corpus)
+        self.synth_true_words = synth_true_words
+
     @staticmethod
     def get_filename(phonemic_form: str):
         return f"{phonemic_form.replace(' ', '_')}.ogg"
@@ -299,7 +304,10 @@ class CorporaPhoneticSynthesisTask(BaseCorporaSynthesisTask):
     def get_words(self, corpus_path: Path) -> Set[str]:
         phonetic_forms = set()
         for _, word_pho, non_word_pho in CandidatesPairCSV(corpus_path):
-            phonetic_forms.update({word_pho, non_word_pho})
+            if self.synth_true_words:
+                phonetic_forms.update({word_pho, non_word_pho})
+            else:
+                phonetic_forms.add(non_word_pho)
         return phonetic_forms
 
 
