@@ -15,7 +15,8 @@ from ..tasks.imports import DatasetImportTask, FamiliesImportTask, ImportGoogleS
 from ..tasks.phonemize import PhonemizeFrenchTask, PhonemizeEnglishTask
 from ..tasks.stats import CorporaNgramStatsTask
 from ..tasks.syllabify import SyllabifyFrenchTask, SyllabifyEnglishTask
-from ..tasks.synth import CorporaPhoneticSynthesisTask, TestSynthesisTask, CorporaTextSynthesisTask
+from ..tasks.synth import CorporaPhoneticSynthesisTask, TestSynthesisTask, CorporaTextSynthesisTask, \
+    BaseSpeechSynthesisTask
 from ..tasks.tokenize import TokenizeFrenchTask, TokenizeEnglishTask
 from ..tasks.workspace_init import WorkspaceInitTask
 from ..tasks.wuggy_gen import WuggyPrepareTask, WuggyGenerationFrTask, WuggyGenerationEnTask
@@ -261,9 +262,18 @@ class SynthAllCommand(BaseCommand):
                             help="Don't ask for confirmation before synthesis")
         parser.add_argument("--synth_true_words", action="store_true",
                             help="Synthesize the phonetic form of real words")
+        parser.add_argument("-rs", "--requests_per_second", type=int,
+                            help="Max number of requests per second")
+        parser.add_argument("-rl", "--rate_limit",type=int,
+                            help="Max number of concurrent requests")
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        if args.requests_per_second is not None:
+            BaseSpeechSynthesisTask.MAX_REQUEST_PER_SECOND = args.requests_per_second
+        if args.rate_limit is not None:
+            BaseSpeechSynthesisTask.MAX_CONCURRENT_REQUEST = args.rate_limit
+
         return [CorporaTextSynthesisTask(no_confirmation=args.yes),
                 CorporaPhoneticSynthesisTask(no_confirmation=args.yes,
                                              synth_true_words=args.synth_true_words)]

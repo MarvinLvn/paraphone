@@ -1,9 +1,11 @@
 import asyncio
+import random
 from asyncio import Semaphore
 from pathlib import Path
 from typing import Optional, Iterable, List, Tuple, Awaitable, Dict, Set
 
 from aiolimiter import AsyncLimiter
+from google.api_core.exceptions import GoogleAPICallError
 from google.cloud import texttospeech
 from google.cloud.texttospeech_v1 import SynthesisInput
 from tqdm import tqdm
@@ -35,7 +37,7 @@ class GoogleSpeakSynthesizer:
     STANDARD_VOICE_PRICE_PER_CHAR = 0.000004
     WAVENET_VOICE_PRICE_PER_CHAR = 0.000016
     NUMBER_RETRIES = 4
-    RETRY_WAIT_TIME = 0.5
+    RETRY_WAIT_TIME = 1.0
 
     def __init__(self, lang: str, voice_id: str, credentials_path: Path):
         self.lang = "en-US" if lang == "en" else "fr-FR"
@@ -66,9 +68,9 @@ class GoogleSpeakSynthesizer:
                     voice=self.voice,
                     audio_config=self.audio_config
                 )
-            except Exception:
+            except GoogleAPICallError:
                 logger.debug(f"Error in synth, retrying in {self.RETRY_WAIT_TIME}")
-                await asyncio.sleep(self.RETRY_WAIT_TIME)
+                await asyncio.sleep(random.random() * self.RETRY_WAIT_TIME)
                 continue
             else:
                 return response.audio_content
