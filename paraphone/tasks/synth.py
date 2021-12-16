@@ -37,7 +37,7 @@ class GoogleSpeakSynthesizer:
     STANDARD_VOICE_PRICE_PER_CHAR = 0.000004
     WAVENET_VOICE_PRICE_PER_CHAR = 0.000016
     NUMBER_RETRIES = 4
-    RETRY_WAIT_TIME = 1.0
+    RETRY_WAIT_TIME = 10.0
 
     def __init__(self, lang: str, voice_id: str, credentials_path: Path):
         self.lang = "en-US" if lang == "en" else "fr-FR"
