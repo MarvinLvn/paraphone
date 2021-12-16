@@ -52,4 +52,4 @@
 - DONE: générer pour corpus 64 avec : 
   - mot réels en forme graph et phonétique
   - mot wuggy en forme phonétique
-- Compare length of words 
+- Compare durations distribution for real and fake words
