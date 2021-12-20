@@ -224,47 +224,22 @@ class SynthTestCommand(BaseCommand):
 
 
 class SynthCorpusCommand(BaseCommand):
-    COMMAND = "corpus"
+    COMMAND = "corpora"
     DESCRIPTION = "Do synthesis for one corpus"
 
     @classmethod
     def init_parser(cls, parser: ArgumentParser):
-        parser.add_argument("corpus_id", type=int, help="Corpus id for which to do synthesis")
         only_for_group = parser.add_mutually_exclusive_group()
         only_for_group.add_argument("--only_text", action="store_true")
         only_for_group.add_argument("--only_phonetic", action="store_true")
-        parser.add_argument("-y", "--yes", action="store_true",
-                            help="Don't ask for confirmation before synthesis")
-        parser.add_argument("--synth_true_words", action="store_true",
-                            help="Synthesize the phonetic form of real words")
-
-    @classmethod
-    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        if args.only_phonetic:
-            return CorporaPhoneticSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id)
-        elif args.only_text:
-            return CorporaTextSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id)
-        else:
-            return [
-                CorporaTextSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id),
-                CorporaPhoneticSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id,
-                                             synth_true_words=args.synth_true_words)
-            ]
-
-
-class SynthAllCommand(BaseCommand):
-    COMMAND = "all"
-    DESCRIPTION = "Do synthesis for all corpora"
-
-    @classmethod
-    def init_parser(cls, parser: ArgumentParser):
+        parser.add_argument("--corpus_id", type=int, help="Corpus id for which to do synthesis")
         parser.add_argument("-y", "--yes", action="store_true",
                             help="Don't ask for confirmation before synthesis")
         parser.add_argument("--synth_true_words", action="store_true",
                             help="Synthesize the phonetic form of real words")
         parser.add_argument("-rs", "--requests_per_second", type=int,
                             help="Max number of requests per second")
-        parser.add_argument("-rl", "--rate_limit",type=int,
+        parser.add_argument("-rl", "--rate_limit", type=int,
                             help="Max number of concurrent requests")
 
     @classmethod
@@ -274,15 +249,23 @@ class SynthAllCommand(BaseCommand):
         if args.rate_limit is not None:
             BaseSpeechSynthesisTask.MAX_CONCURRENT_REQUEST = args.rate_limit
 
-        return [CorporaTextSynthesisTask(no_confirmation=args.yes),
-                CorporaPhoneticSynthesisTask(no_confirmation=args.yes,
-                                             synth_true_words=args.synth_true_words)]
+        if args.only_phonetic:
+            return CorporaPhoneticSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id,
+                                                synth_true_words=args.synth_true_words)
+        elif args.only_text:
+            return CorporaTextSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id, )
+        else:
+            return [
+                CorporaTextSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id),
+                CorporaPhoneticSynthesisTask(no_confirmation=args.yes, for_corpus=args.corpus_id,
+                                             synth_true_words=args.synth_true_words)
+            ]
 
 
 class SynthCommand(CommandGroup):
     COMMAND = "synth"
     DESCRIPTION = "Generate audio recordings for corpora"
-    SUBCOMMANDS = [SynthAllCommand, SynthTestCommand, SynthCorpusCommand]
+    SUBCOMMANDS = [SynthTestCommand, SynthCorpusCommand]
 
 
 class CorporaCommand(CommandGroup):

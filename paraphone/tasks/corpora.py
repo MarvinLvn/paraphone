@@ -1,15 +1,16 @@
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Set, List
+from typing import Set, List, Literal
 
 from tqdm import tqdm
 
-from .base import BaseTask
+from .base import BaseTask, CorporaTaskMixin
+from .filters.base import CandidatesPairCSV
 from .imports import FileID
 from .tokenize import TokenizedWordsCSV
 from ..utils import logger
-from ..workspace import Workspace
+from ..workspace import Workspace, WorkspaceCSV
 
 
 class CorporaCreationTask(BaseTask):
@@ -108,3 +109,58 @@ class CorporaCreationTask(BaseTask):
                     dict_writer.writerow({
                         "word": word, "count": count
                     })
+
+
+class ZeroSpeechCSV(WorkspaceCSV):
+    headers = ["id", "filename", "voice", "frequency", "word", "phones", "length", "correct"]
+
+    def __init__(self, file_path: Path):
+        super().__init__(file_path, separator=",", header=self.header)
+
+
+class MakeZeroSpeechTable(BaseTask, CorporaTaskMixin):
+    requires = [
+        "corpora/wuggy_pairs/*",
+        "synth/audio/phonetic/",
+        "synth/audio/text/",
+    ]
+
+    creates = [
+        "corpora/zerospeech/",
+        "corpora/zerospeech/corpus_*.csv"
+    ]
+
+    def __init__(self, real_word_synth: Literal["text", "phonetic"]):
+        super().__init__()
+        self.real_word_synth = real_word_synth
+
+    def create_zr_corps_csv(self,
+                            wuggy_pairs_path: Path,
+                            zr_csv_path : Path,
+                            workspace: Workspace):
+        phonetic_synth_folder = workspace.synth / Path("audio/phonetic/")
+        text_synth_folder = workspace.synth / Path("audio/text/")
+
+        corpus_wuggy_pairs_csv = CandidatesPairCSV(wuggy_pairs_path)
+        zr_corpus_csv = ZeroSpeechCSV(zr_csv_path)
+        with zr_corpus_csv.dict_writer as dict_writer:
+            dict_writer.writeheader()
+            for word, phonetic, fake_phonetic in corpus_wuggy_pairs_csv:
+                dict_writer.writerow(
+
+                )
+
+    def run(self, workspace: Workspace):
+        zr_folder = workspace.corpora / Path("zerospeech")
+        zr_folder.mkdir(parents=True, exist_ok=True)
+        wuggy_pairs_folder = workspace.corpora / Path("wuggy_pairs")
+
+        for corpus_id, corpus_csv_path in self.find_corpora(wuggy_pairs_folder):
+            logger.info(f"For corpus {corpus_id}")
+            self.create_zr_corps_csv(
+                corpus_csv_path,
+                zr_folder / Path(f"corpus_{corpus_id}.csv"),
+                workspace
+            )
+
+

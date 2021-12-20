@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from itertools import tee
+from itertools import tee, zip_longest
 from logging import StreamHandler, Formatter
 from pathlib import Path
 from typing import List
@@ -43,6 +43,11 @@ def consecutive_pairs(iterable):
     return zip(a, b)
 
 
+def grouper(iterable, n, fillvalue=None):
+    args = [iter(iterable)] * n
+    return zip_longest(*args, fillvalue=fillvalue)
+
+
 def _count_generator(reader):
     b = reader(1024 * 1024)
     while b:
@@ -73,6 +78,7 @@ def null_logger():
 
 def parse_syllabic(syllabic_form: str) -> List[Syllable]:
     return [syllable.split(" ") for syllable in syllabic_form.split("-")]
+
 
 def fmt_syllabic(syllables: List[Syllable]) -> str:
     return "-".join(" ".join(pho) for pho in syllables)

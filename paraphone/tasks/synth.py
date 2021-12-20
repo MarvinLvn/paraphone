@@ -69,8 +69,9 @@ class GoogleSpeakSynthesizer:
                     audio_config=self.audio_config
                 )
             except GoogleAPICallError:
-                logger.debug(f"Error in synth, retrying in {self.RETRY_WAIT_TIME}")
-                await asyncio.sleep(random.random() * self.RETRY_WAIT_TIME)
+                wait_time = random.random() * self.RETRY_WAIT_TIME
+                logger.debug(f"Error in synth, retrying in {wait_time}s")
+                await asyncio.sleep(wait_time)
                 continue
             else:
                 return response.audio_content
@@ -127,7 +128,7 @@ class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
             audio_bytes, phonemes = await synth_task
             if audio_bytes is None:
                 logger.warning(f"Got none bytes for {phonemes}, skipping")
-                continue
+                raise RuntimeError()
             self.store_output(audio_bytes, " ".join(phonemes), output_folder)
 
     async def run_word_synth(self, words: List[str],
@@ -139,7 +140,7 @@ class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
             audio_bytes, word = await synth_task
             if audio_bytes is None:
                 logger.warning(f"Got none bytes for {word}, skipping")
-                continue
+                raise RuntimeError()
             self.store_output(audio_bytes, word, output_folder)
 
 
