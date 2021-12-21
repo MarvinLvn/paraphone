@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Type, Union
 
 from ..tasks.base import BaseTask
-from ..tasks.corpora import CorporaCreationTask
+from ..tasks.corpora import CorporaCreationTask, MakeZeroSpeechTableTask
 from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTask, CMUENSetupTask, CelexSetupTask, \
     PhonemizerSetupTask
 from ..tasks.filters.ngrams import NgramScoringTask, NgramBalanceScoresTask
@@ -266,6 +266,21 @@ class SynthCommand(CommandGroup):
     COMMAND = "synth"
     DESCRIPTION = "Generate audio recordings for corpora"
     SUBCOMMANDS = [SynthTestCommand, SynthCorpusCommand]
+
+
+class ZeroSpeechGenCommand(BaseCommand):
+    COMMAND = "zerospeech"
+    DESCRIPTION = "Generate zerospeech csv tables"
+
+    @classmethod
+    def init_parser(cls, parser: ArgumentParser):
+        parser.add_argument("--use_grapheme", action="store_true",
+                            help="Use grapheme form os synthesis for real words")
+
+
+    @classmethod
+    def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
+        return MakeZeroSpeechTableTask("text" if args.use_grapheme else "phonetic")
 
 
 class CorporaCommand(CommandGroup):

@@ -118,7 +118,7 @@ class ZeroSpeechCSV(WorkspaceCSV):
         super().__init__(file_path, separator=",", header=self.header)
 
 
-class MakeZeroSpeechTable(BaseTask, CorporaTaskMixin):
+class MakeZeroSpeechTableTask(BaseTask, CorporaTaskMixin):
     requires = [
         "corpora/wuggy_pairs/*",
         "synth/audio/phonetic/",
@@ -138,17 +138,37 @@ class MakeZeroSpeechTable(BaseTask, CorporaTaskMixin):
                             wuggy_pairs_path: Path,
                             zr_csv_path : Path,
                             workspace: Workspace):
+        # TODO: figure out what to do for filename for real_word_synth
         phonetic_synth_folder = workspace.synth / Path("audio/phonetic/")
         text_synth_folder = workspace.synth / Path("audio/text/")
+        voices = [p.name for p in phonetic_synth_folder.iterdir()]
 
         corpus_wuggy_pairs_csv = CandidatesPairCSV(wuggy_pairs_path)
         zr_corpus_csv = ZeroSpeechCSV(zr_csv_path)
         with zr_corpus_csv.dict_writer as dict_writer:
             dict_writer.writeheader()
             for word, phonetic, fake_phonetic in corpus_wuggy_pairs_csv:
-                dict_writer.writerow(
-
-                )
+                for voice in voices:
+                    dict_writer.writerow({
+                        "id": 1,
+                        "filename": word, # TODO
+                        "voice": voice,
+                        "frequency": 0.0, # TODO
+                        "word": word,
+                        "phones": " ".join(phonetic),
+                        "length": len(phonetic),
+                        "correct": 1
+                    })
+                    dict_writer.writerow({
+                        "id": 1,
+                        "filename": "_".join(fake_phonetic),  # TODO
+                        "voice": voice,
+                        "frequency": 0.0,  # TODO
+                        "word": None, # TODO
+                        "phones": " ".join(fake_phonetic),
+                        "length": len(phonetic),
+                        "correct": 0
+                    })
 
     def run(self, workspace: Workspace):
         zr_folder = workspace.corpora / Path("zerospeech")

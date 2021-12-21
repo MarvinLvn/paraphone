@@ -43,9 +43,10 @@ def consecutive_pairs(iterable):
     return zip(a, b)
 
 
-def grouper(iterable, n, fillvalue=None):
+def chunkify(iterable, n, fillvalue=None):
     args = [iter(iterable)] * n
-    return zip_longest(*args, fillvalue=fillvalue)
+    for group in zip_longest(*args, fillvalue=fillvalue):
+        yield [e for e in group if e is not None]
 
 
 def _count_generator(reader):

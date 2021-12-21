@@ -13,7 +13,7 @@ from tqdm.asyncio import tqdm as async_tqdm
 
 from .base import BaseTask, CorporaTaskMixin
 from .filters.base import CandidatesPairCSV
-from ..utils import logger
+from ..utils import logger, chunkify
 from ..workspace import Workspace
 
 VOICES = {
@@ -276,18 +276,19 @@ class BaseCorporaSynthesisTask(BaseSpeechSynthesisTask):
         logger.info("Starting synthesis...")
         loop = asyncio.get_event_loop()
         for synth, words in synth_words.items():
-            logger.info(f"For synth with voice id {synth.voice_id}")
-            audio_folder = synth_folder / Path(synth.voice_id)
-            audio_folder.mkdir(parents=True, exist_ok=True)
-            if self.FOR_PHONETIC:
-                async_tasks = self.run_pho_synth(words,
-                                                 synth,
-                                                 audio_folder)
-            else:
-                async_tasks = self.run_word_synth(words,
-                                                  synth,
-                                                  audio_folder)
-            loop.run_until_complete(async_tasks)
+            for words_chunck in chunkify(words, 2 ** 12):
+                logger.info(f"For synth with voice id {synth.voice_id}")
+                audio_folder = synth_folder / Path(synth.voice_id)
+                audio_folder.mkdir(parents=True, exist_ok=True)
+                if self.FOR_PHONETIC:
+                    async_tasks = self.run_pho_synth(words_chunck,
+                                                     synth,
+                                                     audio_folder)
+                else:
+                    async_tasks = self.run_word_synth(words_chunck,
+                                                      synth,
+                                                      audio_folder)
+                loop.run_until_complete(async_tasks)
 
 
 class CorporaPhoneticSynthesisTask(BaseCorporaSynthesisTask):
