@@ -13,7 +13,7 @@ from tqdm.asyncio import tqdm as async_tqdm
 
 from .base import BaseTask, CorporaTaskMixin
 from .filters.base import CandidatesPairCSV
-from ..utils import logger
+from ..utils import logger, chunkify
 from ..workspace import Workspace
 
 VOICES = {
@@ -37,7 +37,7 @@ class GoogleSpeakSynthesizer:
     STANDARD_VOICE_PRICE_PER_CHAR = 0.000004
     WAVENET_VOICE_PRICE_PER_CHAR = 0.000016
     NUMBER_RETRIES = 4
-    RETRY_WAIT_TIME = 1.0
+    RETRY_WAIT_TIME = 10.0
 
     def __init__(self, lang: str, voice_id: str, credentials_path: Path):
         self.lang = "en-US" if lang == "en" else "fr-FR"
@@ -69,8 +69,9 @@ class GoogleSpeakSynthesizer:
                     audio_config=self.audio_config
                 )
             except GoogleAPICallError:
-                logger.debug(f"Error in synth, retrying in {self.RETRY_WAIT_TIME}")
-                await asyncio.sleep(random.random() * self.RETRY_WAIT_TIME)
+                wait_time = random.random() * self.RETRY_WAIT_TIME
+                logger.debug(f"Error in synth, retrying in {wait_time}s")
+                await asyncio.sleep(wait_time)
                 continue
             else:
                 return response.audio_content
@@ -127,7 +128,7 @@ class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
             audio_bytes, phonemes = await synth_task
             if audio_bytes is None:
                 logger.warning(f"Got none bytes for {phonemes}, skipping")
-                continue
+                raise RuntimeError()
             self.store_output(audio_bytes, " ".join(phonemes), output_folder)
 
     async def run_word_synth(self, words: List[str],
@@ -139,7 +140,7 @@ class BaseSpeechSynthesisTask(BaseTask, CorporaTaskMixin):
             audio_bytes, word = await synth_task
             if audio_bytes is None:
                 logger.warning(f"Got none bytes for {word}, skipping")
-                continue
+                raise RuntimeError()
             self.store_output(audio_bytes, word, output_folder)
 
 
@@ -275,18 +276,19 @@ class BaseCorporaSynthesisTask(BaseSpeechSynthesisTask):
         logger.info("Starting synthesis...")
         loop = asyncio.get_event_loop()
         for synth, words in synth_words.items():
-            logger.info(f"For synth with voice id {synth.voice_id}")
-            audio_folder = synth_folder / Path(synth.voice_id)
-            audio_folder.mkdir(parents=True, exist_ok=True)
-            if self.FOR_PHONETIC:
-                async_tasks = self.run_pho_synth(words,
-                                                 synth,
-                                                 audio_folder)
-            else:
-                async_tasks = self.run_word_synth(words,
-                                                  synth,
-                                                  audio_folder)
-            loop.run_until_complete(async_tasks)
+            for words_chunck in chunkify(words, 2 ** 12):
+                logger.info(f"For synth with voice id {synth.voice_id}")
+                audio_folder = synth_folder / Path(synth.voice_id)
+                audio_folder.mkdir(parents=True, exist_ok=True)
+                if self.FOR_PHONETIC:
+                    async_tasks = self.run_pho_synth(words_chunck,
+                                                     synth,
+                                                     audio_folder)
+                else:
+                    async_tasks = self.run_word_synth(words_chunck,
+                                                      synth,
+                                                      audio_folder)
+                loop.run_until_complete(async_tasks)
 
 
 class CorporaPhoneticSynthesisTask(BaseCorporaSynthesisTask):
