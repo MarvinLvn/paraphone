@@ -294,7 +294,7 @@ class ZeroSpeechGenCommand(BaseCommand):
 class CorporaCommand(CommandGroup):
     COMMAND = "corpora"
     DESCRIPTION = "Operations on corpora"
-    SUBCOMMANDS = [CorpusGenCommand, SynthCommand]
+    SUBCOMMANDS = [CorpusGenCommand, SynthCommand, ZeroSpeechGenCommand]
 
 
 class PhonemizeCommand(BaseCommand):

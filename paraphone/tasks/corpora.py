@@ -116,7 +116,7 @@ class CorporaCreationTask(BaseTask):
 
 
 class ZeroSpeechCSV(WorkspaceCSV):
-    headers = ["id", "filename", "voice", "frequency", "word", "phones", "length", "correct"]
+    header = ["id", "filename", "voice", "frequency", "word", "phones", "length", "correct"]
 
     def __init__(self, file_path: Path):
         super().__init__(file_path, separator=",", header=self.header)
@@ -126,7 +126,6 @@ class BuildZeroSpeechTestSetsTask(BaseTask, CorporaTaskMixin):
     requires = [
         "corpora/wuggy_pairs/*",
         "synth/audio/phonetic/",
-        "synth/audio/text/",
     ]
 
     def __init__(self,
@@ -142,23 +141,23 @@ class BuildZeroSpeechTestSetsTask(BaseTask, CorporaTaskMixin):
                               zr_corpus_folder: Path,
                               corpus_id: int,
                               workspace: Workspace):
-        family_folder = workspace.datasets / Path(f"families/families_{corpus_id}")
+        family_folder = workspace.datasets / Path(f"families/family_{corpus_id}")
         corpus_csv = TokenizedWordsCSV(workspace.corpora / Path(f"tokenized/corpus_{corpus_id}.csv"))
         corpus_words = set(corpus_csv.to_dict().keys())
 
-        group_paths = sorted(family_folder.iterdir(), key=lambda p: int(p.name.split("_")[1]))
+        group_paths = sorted(family_folder.iterdir(), key=lambda p: int(p.stem.split("_")[1]))
         freqs_df = pandas.DataFrame()
         for group_filepath in tqdm(group_paths):
 
             with open(group_filepath) as group_file:
-                file_ids = set(group_file.read().split("\n"))
+                file_ids = {f_id for f_id in group_file.read().split("\n") if f_id}
             group_words_freqs = load_group_words(file_ids, workspace)
 
             group_words_freqs = SortedDict({word: freq
                                             for word, freq in group_words_freqs.items()
                                             if word in corpus_words})
             if freqs_df.index.empty:
-                freqs_df.set_index(group_words_freqs.keys())
+                freqs_df.index = list(group_words_freqs.keys())
 
             freqs_df[group_filepath.name] = list(group_words_freqs.values())
 
@@ -188,8 +187,8 @@ class BuildZeroSpeechTestSetsTask(BaseTask, CorporaTaskMixin):
                 if self.real_word_synth == "text":
                     word_filename = word
                 else:
-                    word_filename = "_".join(phonetic)
-                fake_word_filename = "_".join(fake_phonetic)
+                    word_filename = phonetic.replace(" ", "_")
+                fake_word_filename = fake_phonetic.replace(" ", "_")
 
                 for voice in voices:
                     # writing pair entries in the "gold" csv file
@@ -199,8 +198,8 @@ class BuildZeroSpeechTestSetsTask(BaseTask, CorporaTaskMixin):
                         "voice": voice,
                         "frequency": 0.0,
                         "word": word,
-                        "phones": " ".join(phonetic),
-                        "length": len(phonetic),
+                        "phones": phonetic,
+                        "length": len(phonetic.split(" ")),
                         "correct": 1
                     })
                     dict_writer.writerow({
@@ -209,8 +208,8 @@ class BuildZeroSpeechTestSetsTask(BaseTask, CorporaTaskMixin):
                         "voice": voice,
                         "frequency": 0.0,
                         "word": None,
-                        "phones": " ".join(fake_phonetic),
-                        "length": len(phonetic),
+                        "phones": fake_phonetic,
+                        "length": len(fake_phonetic.split(" ")),
                         "correct": 0
                     })
 
@@ -231,7 +230,7 @@ class BuildZeroSpeechTestSetsTask(BaseTask, CorporaTaskMixin):
                     pbar.update()
 
     def run(self, workspace: Workspace):
-        zr_folder = workspace.corpora / Path("zerospeech")
+        zr_folder = self.output_folder
         zr_folder.mkdir(parents=True, exist_ok=True)
         wuggy_pairs_folder = workspace.corpora / Path("wuggy_pairs")
 
@@ -242,7 +241,7 @@ class BuildZeroSpeechTestSetsTask(BaseTask, CorporaTaskMixin):
                        if corpus_id == self.for_corpus]
 
         for corpus_id, corpus_csv_path in corpora:
-            corpus_zr_folder = zr_folder / Path(f"testset{corpus_id}.csv")
+            corpus_zr_folder = zr_folder / Path(f"testset_{corpus_id}")
             logger.info(f"For corpus {corpus_id}")
             logger.info("Building corpus table and aggregating audio files")
             self.build_zr_testset(corpus_csv_path, corpus_zr_folder, workspace)
