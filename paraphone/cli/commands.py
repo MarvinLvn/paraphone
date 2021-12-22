@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Type, Union
 
 from ..tasks.base import BaseTask
-from ..tasks.corpora import CorporaCreationTask, MakeZeroSpeechTableTask
+from ..tasks.corpora import CorporaCreationTask, BuildZeroSpeechTestSetsTask
 from ..tasks.dictionaries import CMUFRSetupTask, LexiqueSetupTask, INSEESetupTask, CMUENSetupTask, CelexSetupTask, \
     PhonemizerSetupTask
 from ..tasks.filters.ngrams import NgramScoringTask, NgramBalanceScoresTask
@@ -270,23 +270,31 @@ class SynthCommand(CommandGroup):
 
 class ZeroSpeechGenCommand(BaseCommand):
     COMMAND = "zerospeech"
-    DESCRIPTION = "Generate zerospeech csv tables"
+    DESCRIPTION = "Generate zerospeech testset aggregates"
 
     @classmethod
     def init_parser(cls, parser: ArgumentParser):
+        parser.add_argument("output_folder", type=Path,
+                            help="Output path for the testsets folders")
+        parser.add_argument("--for_corpus", type=int,
+                            help="Select one corpus")
         parser.add_argument("--use_grapheme", action="store_true",
                             help="Use grapheme form os synthesis for real words")
 
 
+
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return MakeZeroSpeechTableTask("text" if args.use_grapheme else "phonetic")
+        real_word_synth = "text" if args.use_grapheme else "phonetic"
+        return BuildZeroSpeechTestSetsTask(args.output_folder,
+                                           real_word_synth, # noqa
+                                           args.for_corpus)
 
 
 class CorporaCommand(CommandGroup):
     COMMAND = "corpora"
     DESCRIPTION = "Operations on corpora"
-    SUBCOMMANDS = [CorpusGenCommand, SynthCommand]
+    SUBCOMMANDS = [CorpusGenCommand, SynthCommand, ZeroSpeechGenCommand]
 
 
 class PhonemizeCommand(BaseCommand):
