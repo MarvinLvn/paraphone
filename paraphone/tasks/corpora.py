@@ -171,6 +171,7 @@ class BuildZeroSpeechTestSetsTask(BaseTask, CorporaTaskMixin):
         zr_audio_folder = zr_corpus_folder / Path("ogg")
         zr_audio_folder.mkdir(parents=True, exist_ok=True)
         zr_csv_path = zr_corpus_folder / Path("gold.csv")
+        words_dataset_freqs = TokenizedWordsCSV(workspace.tokenized / "all.csv").to_dict()
 
         phonetic_synth_folder = workspace.synth / Path("audio/phonetic/")
         text_synth_folder = workspace.synth / Path("audio/text/")
@@ -196,7 +197,7 @@ class BuildZeroSpeechTestSetsTask(BaseTask, CorporaTaskMixin):
                         "id": pair_id + 1,
                         "filename": f"{word_filename}-{voice}",
                         "voice": voice,
-                        "frequency": 0.0,
+                        "frequency": words_dataset_freqs[word],
                         "word": word,
                         "phones": phonetic,
                         "length": len(phonetic.split(" ")),
@@ -206,7 +207,7 @@ class BuildZeroSpeechTestSetsTask(BaseTask, CorporaTaskMixin):
                         "id": pair_id + 1,
                         "filename": f"{fake_word_filename}-{voice}",
                         "voice": voice,
-                        "frequency": 0.0,
+                        "frequency": "",
                         "word": None,
                         "phones": fake_phonetic,
                         "length": len(fake_phonetic.split(" ")),

@@ -52,14 +52,22 @@ paraphone workspaces/myworkspace wuggy --num_candidates 10
 paraphone workspaces/myworkspace filter init
 # removing pairs where the phonetic form of the real word == phonetic form of fake word
 paraphone workspaces/myworkspace filter equal-pairs
+# removing homophones for real words. Only the most frequent of homophone is kept
+paraphone workspace/myworkspace filter homophones
+# removing wuggy non-words that are homophones to dictionnary words
+paraphone workspace/myworkspace filter wuggy-homophones
 # filtering out pairs that have a phonetic levenshtein edit distance > 2
 paraphone workspaces/myworkspace filter levenshtein --threshold 2 # optional filtering step
-# These steps are to train and then filter words based on seq2seq
-# TODO
-
 # Last filter: it computes ngram scores using the full dataset as a basis,
 # then, for each corpus, balances its candidate pairs using Tu Anh's algorithm
-paraphone workspaces/myworkspace filter ngram # optional
+paraphone workspaces/myworkspace filter ngram 
+
+# then we can go on with synthesis test (you might want to check 
+# that all the phonemes are properly rendered in workspaces/synth/test/
+paraphone workspaces/myworkspace synth test 
+# ten the actual synthesis
+paraphone workspaces/myworkspace synth all 
+
 
 
 
