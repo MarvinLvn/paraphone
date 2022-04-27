@@ -109,7 +109,7 @@ class ImportDatasetCommand(BaseCommand):
         parser.add_argument("dataset_path", type=Path,
                             help="Path to the root of the dataset")
         parser.add_argument("--type", required=True,
-                            choices=["littaudio", "librivox"],
+                            choices=["littaudio", "librivox", "childes"],
                             help="Dataset type to import")
         import_style = parser.add_mutually_exclusive_group()
         import_style.add_argument("--copy", action="store_true")
@@ -433,10 +433,11 @@ class FilterNgramCommand(BaseCommand):
     @classmethod
     def init_parser(cls, parser: ArgumentParser):
         parser.add_argument("-c", "--corpus", type=int, help="Only run for a given corpus")
+        parser.add_argument("--num-to-keep", type=int, help="Number of non-words to keep")
 
     @classmethod
     def build_task(cls, args: Namespace, workspace: Workspace) -> Union[BaseTask, List[BaseTask]]:
-        return [NgramScoringTask(), NgramBalanceScoresTask(args.corpus)]
+        return [NgramScoringTask(), NgramBalanceScoresTask(args.corpus, args.num_to_keep)]
 
 
 class FullDefaultFilteringPipelineCommand(BaseCommand):

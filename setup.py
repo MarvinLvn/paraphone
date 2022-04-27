@@ -12,6 +12,9 @@ with open(here / Path('README.md')) as f:
 with open(here / Path('requirements.txt')) as f:
     requirements = f.read().split("\n")
 
+dependency_links = [req for req in requirements if req.startswith('git+ssh')]
+requirements = [req for req in requirements if not req.startswith('git+ssh')]
+
 setup(
     name='paraphone',
     version='0.1.0',
@@ -34,7 +37,8 @@ setup(
     packages=find_packages(exclude=['docs', 'tests']),
     setup_requires=['setuptools>=38.6.0'],  # >38.6.0 needed for markdown README.md
     install_requires=requirements,
-    extras_requires={
+    dependency_links=dependency_links,
+    extras_require={
         "habilis": [
             # needed for habilis
             "tensorflow==1.8.0",

@@ -16,7 +16,7 @@ from .base import BaseTask
 from ..utils import logger, pairwise
 from ..workspace import Workspace, WorkspaceCSV
 
-Importers = Literal["librivox", "littaudio"]
+Importers = Literal["librivox", "littaudio", "childes"]
 FileID = Text
 FamilyId = int
 
@@ -62,6 +62,11 @@ class LittAudioImporter(BaseImporter):
 
     # removing the useless end of file to get file_id
     # eg : 9357_1690.txt -> 9357_1690
+
+
+class CHILDESImporter(BaseImporter):
+    id_regex = re.compile("(.*)")
+    glob_pattern = "*.txt"
 
 
 @dataclass
@@ -118,6 +123,8 @@ class DatasetMetadataCSV(WorkspaceCSV):
                     file_id = LibriVoxImporter.get_id_from_path(file_path)
                 elif "litteratureaudio" in file_book_id:
                     file_id = LittAudioImporter.get_id_from_path(file_path)
+                elif "childes" in file_book_id:
+                    file_id = CHILDESImporter.get_id_from_path(file_path)
                 else:
                     logger.warning(f"Couldn't get book id for file {file_path.stem}")
                     continue
@@ -126,7 +133,7 @@ class DatasetMetadataCSV(WorkspaceCSV):
 
 
 class DatasetImportTask(BaseTask):
-    """Imports a dataset (Librivox-type or AudioLitt-type) in the workspace
+    """Imports a dataset (Librivox-type or AudioLitt-type or CHILDES-type) in the workspace
     folder, by copying or symlinking it. Parses all the dataset files to
     build an index of the files in dataset/index.csv"""
 
@@ -140,7 +147,8 @@ class DatasetImportTask(BaseTask):
 
     importers: Dict[Importers, Type[BaseImporter]] = {
         "littaudio": LittAudioImporter,
-        "librivox": LibriVoxImporter
+        "librivox": LibriVoxImporter,
+        "childes": CHILDESImporter
     }
 
     def __init__(self, dataset_path: Path,
@@ -190,7 +198,7 @@ class DatasetImportTask(BaseTask):
         added_count = 0
         for file_id, file_path in importer:
             added_count += 1
-
+            print(file_id, file_path)
             dataset_csv.add_entry(file_id, file_path)
         dataset_csv.write_entries()
         logger.info(f"Update done. Added {added_count} texts to index.")

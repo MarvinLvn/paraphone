@@ -136,11 +136,13 @@ class FakeWordsBalancer:
                  words_scores: Dict[str, Dict[str, Score]],  # {word_pho : {score_name : score}}
                  word_categories: Dict[str, WordCategory],  # { word_pho : (cat_1, cat_2,...)}
                  word_nonword_pairs: Dict[str, List[str]],  # {real_word : list(fake_word) }
-                 objective_fn: Optional[Callable[[Iterable[Score]], float]] = None):
+                 objective_fn: Optional[Callable[[Iterable[Score]], float]] = None,
+                 num_to_keep: int = 1):
         self.objective_fn = objective_fn if objective_fn is not None else abs_sum_score_fn
         self.words_scores = words_scores
         self.word_categories = word_categories
         self.word_nonword_pairs = word_nonword_pairs
+        self.num_to_keep = num_to_keep
 
         # all categories
         self.categories = set(word_categories.values())

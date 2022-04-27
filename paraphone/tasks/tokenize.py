@@ -64,6 +64,7 @@ class TokenizeTask(BaseTask):
     def tokenize_file(self, text_id: FileID,
                       file_path: Path,
                       all_tokenized_csv: TokenizedWordsCSV,
+                      all_eliminated_words: TokenizedWordsCSV,
                       workspace: Workspace):
         tokenization_csv = TokenizedWordsCSV(
             workspace.tokenized / Path(f"per_text/{text_id}.csv")
@@ -84,11 +85,15 @@ class TokenizeTask(BaseTask):
                     word_candidate = candidates.pop().lower()
                     if len(word_candidate) == 1:
                         continue
+                    is_candidate = False
                     for word_dict in self._dictionaries:
                         if word_candidate in word_dict:
+                            is_candidate = True
                             tokenization_csv.add_word(word_candidate)
                             all_tokenized_csv.add_word(word_candidate)
                             break
+                    if not is_candidate:
+                        all_eliminated_words.add_word(word_candidate)
                     else:
                         if "-" in word_candidate:
                             candidates += word_candidate.split("-")
@@ -104,6 +109,8 @@ class TokenizeTask(BaseTask):
         (workspace.tokenized / Path(f"per_text/")).mkdir(parents=True, exist_ok=True)
 
         all_tokenized_words = TokenizedWordsCSV(workspace.tokenized / Path("all.csv"))
+        all_eliminated_words = TokenizedWordsCSV(workspace.tokenized / Path("eliminated.csv"))
+
         dataset_index = DatasetIndexCSV(workspace.datasets_index)
         self._dictionaries = self.load_dictionaries(workspace)
 
@@ -113,11 +120,11 @@ class TokenizeTask(BaseTask):
             text_path = workspace.root_path / text_rel_path
             dataset_pbar.set_description(f"For {text_id}")
             try:
-                self.tokenize_file(text_id, text_path, all_tokenized_words, workspace)
+                self.tokenize_file(text_id, text_path, all_tokenized_words, all_eliminated_words, workspace)
             except FileNotFoundError:
                 logger.warning(f"Couldn't find file {text_id} at path {text_path} in dataset")
         all_tokenized_words.write_entries()
-
+        all_eliminated_words.write_entries()
 
 class TokenizeFrenchTask(TokenizeTask):
     requires = TokenizeTask.requires + [

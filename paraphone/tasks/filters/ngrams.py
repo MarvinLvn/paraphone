@@ -127,9 +127,10 @@ class NgramBalanceScoresTask(CorpusFinalFilteringTask):
     ]
     step_name = "ngram"
 
-    def __init__(self, for_corpus: Optional[int] = None):
+    def __init__(self, for_corpus: Optional[int] = None, num_to_keep=1):
         super().__init__(for_corpus=for_corpus)
         self._chosen_pairs: Set[Tuple[str, str]] = set()
+        self.num_to_keep = num_to_keep
 
     def keep_pair(self, word_pair: WordPair) -> bool:
         return (word_pair.word_pho, word_pair.fake_word_pho) in self._chosen_pairs
@@ -168,7 +169,8 @@ class NgramBalanceScoresTask(CorpusFinalFilteringTask):
         balancer = FakeWordsBalancer(words_scores=scores,
                                      word_categories=categories,
                                      word_nonword_pairs=word_nonwords,
-                                     objective_fn=abs_sum_score_fn)
+                                     objective_fn=abs_sum_score_fn,
+                                     num_to_keep=self.num_to_keep)
 
         logger.info("Finding a balanced nonword candidate for each word")
         for word, fake_word in tqdm(balancer.iter_balanced_pairs(), total=len(word_nonwords)):
