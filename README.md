@@ -60,6 +60,7 @@ paraphone workspace/myworkspace filter wuggy-homophones
 paraphone workspaces/myworkspace filter levenshtein --threshold 2 # optional filtering step
 # Last filter: it computes ngram scores using the full dataset as a basis,
 # then, for each corpus, balances its candidate pairs using Tu Anh's algorithm
+paraphone workspaces/myworkspace corpora generate
 paraphone workspaces/myworkspace filter ngram 
 
 # then we can go on with synthesis test (you might want to check 
