@@ -341,6 +341,7 @@ class CelexSetupTask(DictionarySetupTask):
         copyfile(DATA_FOLDER / Path("vowels_en.txt"), vowels_path)
 
         # folding the whole dict
+        self.copy_folding(workspace)
         self.load_folding()
         self.fold_dictionary(workspace)
 
