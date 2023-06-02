@@ -8,7 +8,7 @@ It's probably best that you set up paraphone's environment on oberon (some steps
 are dependent on the pucks)
 
 ```shell
-git clone ssh://git@gitlab.cognitive-ml.fr:1022/htiteux/paraphone.git
+git clone https://github.com/MarvinLvn/paraphone.git
 cd paraphone
 # Using a venv. Works with a conda env as well
 python3 -m venv venv/
